@@ -1,4 +1,7 @@
-const API_BASE = '/calls';
+import type { ResearchContext } from '@/types/research-context.type';
+
+const CALLS_BASE = '/calls';
+const SETUP_BASE = '/setup';
 
 type StartCallResponse = {
   callId: string;
@@ -29,6 +32,7 @@ type CallRecord = {
   agentId: string;
   conversationId: string | null;
   status: 'created' | 'in-progress' | 'processing' | 'completed' | 'failed';
+  context: ResearchContext;
   transcript: Array<{
     role: 'user' | 'agent';
     message: string;
@@ -39,14 +43,61 @@ type CallRecord = {
   completedAt: string | null;
 };
 
-async function startCall(): Promise<StartCallResponse> {
-  const response = await fetch(`${API_BASE}/start`, { method: 'POST' });
+type StartSetupResponse = {
+  sessionId: string;
+  firstMessage: string;
+};
+
+type SetupChatResponse = {
+  reply: string;
+  context?: ResearchContext;
+  done: boolean;
+};
+
+async function readError(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string | string[] };
+    if (typeof body.message === 'string') return body.message;
+    if (Array.isArray(body.message)) return body.message.join('; ');
+  } catch {
+    // ignore JSON parse failures
+  }
+  return `${fallback} (HTTP ${response.status})`;
+}
+
+async function startSetup(): Promise<StartSetupResponse> {
+  const response = await fetch(`${SETUP_BASE}/start`, { method: 'POST' });
+  if (!response.ok) throw new Error(await readError(response, 'Failed to start setup'));
+  return response.json() as Promise<StartSetupResponse>;
+}
+
+async function sendSetupMessage(
+  sessionId: string,
+  message: string,
+): Promise<SetupChatResponse> {
+  const response = await fetch(`${SETUP_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, message }),
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response, 'Failed to send setup message'));
+  }
+  return response.json() as Promise<SetupChatResponse>;
+}
+
+async function startCall(context: ResearchContext): Promise<StartCallResponse> {
+  const response = await fetch(`${CALLS_BASE}/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ context }),
+  });
   if (!response.ok) throw new Error('Failed to start call');
   return response.json() as Promise<StartCallResponse>;
 }
 
 async function endCall(callId: string, conversationId: string): Promise<CallRecord> {
-  const response = await fetch(`${API_BASE}/${callId}/end`, {
+  const response = await fetch(`${CALLS_BASE}/${callId}/end`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ conversationId }),
@@ -56,10 +107,16 @@ async function endCall(callId: string, conversationId: string): Promise<CallReco
 }
 
 async function getCall(callId: string): Promise<CallRecord> {
-  const response = await fetch(`${API_BASE}/${callId}`);
+  const response = await fetch(`${CALLS_BASE}/${callId}`);
   if (!response.ok) throw new Error('Failed to get call');
   return response.json() as Promise<CallRecord>;
 }
 
-export { startCall, endCall, getCall };
-export type { StartCallResponse, CallRecord, CallAnalysis };
+export { startCall, endCall, getCall, startSetup, sendSetupMessage };
+export type {
+  StartCallResponse,
+  CallRecord,
+  CallAnalysis,
+  StartSetupResponse,
+  SetupChatResponse,
+};

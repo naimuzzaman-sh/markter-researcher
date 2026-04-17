@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AgentFactoryService } from '../agent/agent-factory.service';
 import { AnalysisService } from '../analysis/analysis.service';
+import { SupabaseService } from '../persistence/supabase.service';
 import type { CallRecord, TranscriptEntry } from '../../types/call-record.type';
 import type { ResearchContext } from '../../types/research-context.type';
+import type { SavedInterview } from '../../types/saved-interview.type';
 
 const ELEVENLABS_API_BASE = 'https://api.elevenlabs.io/v1/convai';
 
@@ -15,17 +17,20 @@ type ElevenLabsTranscriptEntry = {
 
 @Injectable()
 export class CallService {
+  private readonly logger = new Logger(CallService.name);
   private readonly calls = new Map<string, CallRecord>();
 
   constructor(
     private readonly agentFactory: AgentFactoryService,
     private readonly analysisService: AnalysisService,
-    private readonly researchContext: ResearchContext,
+    private readonly persistence: SupabaseService,
     private readonly elevenLabsApiKey: string,
   ) {}
 
-  async startCall(): Promise<CallRecord & { signedUrl: string }> {
-    const agentId = await this.agentFactory.createAgent(this.researchContext);
+  async startCall(
+    context: ResearchContext,
+  ): Promise<CallRecord & { signedUrl: string }> {
+    const agentId = await this.agentFactory.createAgent(context);
     const signedUrl = await this.getSignedUrl(agentId);
 
     const record: CallRecord = {
@@ -33,6 +38,7 @@ export class CallService {
       agentId,
       conversationId: null,
       status: 'created',
+      context,
       transcript: [],
       analysis: null,
       createdAt: new Date(),
@@ -81,7 +87,7 @@ export class CallService {
 
       const analysis = await this.analysisService.analyzeTranscript(
         transcript,
-        this.researchContext.research.questions,
+        record.context.research.questions,
       );
       record.analysis = analysis;
       record.status = 'completed';
@@ -90,9 +96,42 @@ export class CallService {
       record.status = 'failed';
     }
 
+    await this.persistInterview(record).catch((err) => {
+      this.logger.error(
+        `Failed to persist interview ${record.id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
+
     await this.agentFactory.deleteAgent(record.agentId).catch(() => {});
 
     return record;
+  }
+
+  private async persistInterview(record: CallRecord): Promise<void> {
+    if (record.status !== 'completed' && record.status !== 'failed') {
+      return;
+    }
+
+    const durationSecs =
+      record.completedAt !== null
+        ? Math.round(
+            (record.completedAt.getTime() - record.createdAt.getTime()) / 1000,
+          )
+        : null;
+
+    const saved: SavedInterview = {
+      callId: record.id,
+      agentId: record.agentId,
+      conversationId: record.conversationId,
+      status: record.status,
+      researchContext: record.context,
+      transcript: record.transcript,
+      analysis: record.analysis,
+      durationSecs,
+      completedAt: record.completedAt,
+    };
+
+    await this.persistence.saveInterview(saved);
   }
 
   private async fetchTranscript(conversationId: string): Promise<TranscriptEntry[]> {

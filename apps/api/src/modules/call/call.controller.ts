@@ -8,9 +8,14 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { CallService } from './call.service';
+import { researchContextSchema } from '../../types/research-context.type';
 
 type EndCallBody = {
   conversationId: string;
+};
+
+type StartCallBody = {
+  context: unknown;
 };
 
 @Controller('calls')
@@ -18,8 +23,16 @@ export class CallController {
   constructor(private readonly callService: CallService) {}
 
   @Post('start')
-  async startCall() {
-    const call = await this.callService.startCall();
+  async startCall(@Body() body: StartCallBody) {
+    const parsed = researchContextSchema.safeParse(body.context);
+    if (!parsed.success) {
+      throw new HttpException(
+        { message: 'Invalid research context', issues: parsed.error.issues },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const call = await this.callService.startCall(parsed.data);
     return {
       callId: call.id,
       agentId: call.agentId,
