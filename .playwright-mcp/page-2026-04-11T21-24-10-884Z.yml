@@ -1,0 +1,7 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - generic [ref=e7]:
+      - generic [ref=e8]: Market Research Interview
+      - generic [ref=e9]: Ready
+    - generic [ref=e10]: AI-powered voice interview — takes about 5 minutes
+  - button "Start Interview" [ref=e12]

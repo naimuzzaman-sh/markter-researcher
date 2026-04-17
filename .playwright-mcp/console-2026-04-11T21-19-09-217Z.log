@@ -1,0 +1,51 @@
+[     243ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:20102
+[     268ms] Error: useRegisterCallbacks must be used within a ConversationProvider
+    at useRegisterCallbacks (http://localhost:5173/node_modules/.vite/deps/@elevenlabs_react.js?v=013c5e58:31238:11)
+    at useConversation (http://localhost:5173/node_modules/.vite/deps/@elevenlabs_react.js?v=013c5e58:31755:3)
+    at CallPanel (http://localhost:5173/src/components/CallPanel.js:35:24)
+    at Object.react_stack_bottom_frame (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:18509:20)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:5654:24)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:7475:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:8525:20)
+    at runWithFiberInDEV (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:997:72)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:12561:98)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:12424:43)
+[     255ms] [WARNING] %s
+
+%s
+ An error occurred in the <CallPanel> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:6965
+[   71975ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:20102
+[   71980ms] Error: useRegisterCallbacks must be used within a ConversationProvider
+    at useRegisterCallbacks (http://localhost:5173/node_modules/.vite/deps/@elevenlabs_react.js?v=013c5e58:31238:11)
+    at useConversation (http://localhost:5173/node_modules/.vite/deps/@elevenlabs_react.js?v=013c5e58:31755:3)
+    at CallPanel (http://localhost:5173/src/components/CallPanel.js:35:24)
+    at Object.react_stack_bottom_frame (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:18509:20)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:5654:24)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:7475:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:8525:20)
+    at runWithFiberInDEV (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:997:72)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:12561:98)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:12424:43)
+[   71979ms] [WARNING] %s
+
+%s
+ An error occurred in the <CallPanel> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:6965
+[   76941ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:20102
+[   77014ms] Error: useRegisterCallbacks must be used within a ConversationProvider
+    at useRegisterCallbacks (http://localhost:5173/node_modules/.vite/deps/@elevenlabs_react.js?v=013c5e58:31238:11)
+    at useConversation (http://localhost:5173/node_modules/.vite/deps/@elevenlabs_react.js?v=013c5e58:31755:3)
+    at CallPanel (http://localhost:5173/src/components/CallPanel.js:35:24)
+    at Object.react_stack_bottom_frame (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:18509:20)
+    at renderWithHooks (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:5654:24)
+    at updateFunctionComponent (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:7475:21)
+    at beginWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:8525:20)
+    at runWithFiberInDEV (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:997:72)
+    at performUnitOfWork (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:12561:98)
+    at workLoopSync (http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:12424:43)
+[   76984ms] [WARNING] %s
+
+%s
+ An error occurred in the <CallPanel> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=44804fe5:6965

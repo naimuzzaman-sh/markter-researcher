@@ -1,0 +1,15 @@
+{
+  "name": "market-researcher",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter './apps/*' dev",
+    "build": "pnpm --filter './apps/*' build",
+    "test": "pnpm --filter './apps/*' test",
+    "typecheck": "pnpm --filter './apps/*' typecheck",
+    "lint": "pnpm --filter './apps/*' lint"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
