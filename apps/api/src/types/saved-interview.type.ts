@@ -11,6 +11,7 @@ const savedTranscriptEntrySchema = z.object({
 const savedInterviewSchema = z.object({
   callId: z.string().min(1),
   agentId: z.string().min(1),
+  briefId: z.string().min(1),
   conversationId: z.string().nullable(),
   status: z.enum(['completed', 'failed']),
   researchContext: researchContextSchema,

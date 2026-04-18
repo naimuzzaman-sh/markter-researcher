@@ -8,14 +8,13 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { CallService } from './call.service';
-import { researchContextSchema } from '../../types/research-context.type';
 
 type EndCallBody = {
   conversationId: string;
 };
 
 type StartCallBody = {
-  context: unknown;
+  briefId?: string;
 };
 
 @Controller('calls')
@@ -24,18 +23,18 @@ export class CallController {
 
   @Post('start')
   async startCall(@Body() body: StartCallBody) {
-    const parsed = researchContextSchema.safeParse(body.context);
-    if (!parsed.success) {
+    if (!body.briefId || typeof body.briefId !== 'string') {
       throw new HttpException(
-        { message: 'Invalid research context', issues: parsed.error.issues },
+        { message: 'briefId is required' },
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    const call = await this.callService.startCall(parsed.data);
+    const call = await this.callService.startCall(body.briefId);
     return {
       callId: call.id,
       agentId: call.agentId,
+      briefId: call.briefId,
       signedUrl: call.signedUrl,
       status: call.status,
     };

@@ -19,6 +19,10 @@ export class AgentFactoryService {
   async createAgent(context: ResearchContext): Promise<string> {
     const systemPrompt = this.promptBuilder.buildInterviewPrompt(context);
 
+    // We intentionally do NOT set conversation.max_duration_seconds here.
+    // On some ElevenLabs plans, values above the workspace ceiling cause LiveKit
+    // to reject the session immediately after connect ("WebSocket CLOSING/CLOSED").
+    // The dashboard-configured ceiling is safer; we nudge pacing through the prompt.
     const body = {
       conversation_config: {
         agent: {
@@ -30,6 +34,12 @@ export class AgentFactoryService {
         },
         tts: {
           voice_id: this.config.voiceId,
+        },
+        turn: {
+          // Default is 7s — too eager; interviewees pausing to think get re-prompted.
+          turn_timeout: 12,
+          // -1 disables auto-hangup on silence so a thoughtful pause can't end the call.
+          silence_end_call_timeout: -1,
         },
       },
     };

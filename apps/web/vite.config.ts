@@ -15,6 +15,7 @@ export default defineConfig({
     proxy: {
       '/calls': 'http://localhost:3000',
       '/setup': 'http://localhost:3000',
+      '/briefs': 'http://localhost:3000',
     },
   },
 });

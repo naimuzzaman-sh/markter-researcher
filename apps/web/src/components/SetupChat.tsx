@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { startSetup, sendSetupMessage } from '@/lib/api';
+import { createBrief, startSetup, sendSetupMessage } from '@/lib/api';
 import type { ResearchContext } from '@/types/research-context.type';
 
 type Message = {
@@ -10,10 +10,10 @@ type Message = {
 };
 
 type SetupChatProps = {
-  onReady: (context: ResearchContext) => void;
+  onBriefCreated: (briefId: string) => void;
 };
 
-function SetupChat({ onReady }: SetupChatProps) {
+function SetupChat({ onBriefCreated }: SetupChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [input, setInput] = useState('');
@@ -88,7 +88,7 @@ function SetupChat({ onReady }: SetupChatProps) {
     return (
       <ContextReview
         context={draftContext}
-        onConfirm={() => onReady(draftContext)}
+        onCreate={onBriefCreated}
         onRefine={() => setDraftContext(null)}
       />
     );
@@ -230,13 +230,31 @@ function Dots() {
 
 function ContextReview({
   context,
-  onConfirm,
+  onCreate,
   onRefine,
 }: {
   context: ResearchContext;
-  onConfirm: () => void;
+  onCreate: (briefId: string) => void;
   onRefine: () => void;
 }) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreate = useCallback(async () => {
+    if (isCreating) return;
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      const { briefId } = await createBrief(context);
+      onCreate(briefId);
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : 'Failed to create brief',
+      );
+      setIsCreating(false);
+    }
+  }, [context, isCreating, onCreate]);
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border/60">
@@ -321,15 +339,23 @@ function ContextReview({
 
           <div className="hairline" />
 
+          {createError && (
+            <p className="font-mono text-xs text-destructive border-l-2 border-destructive pl-3">
+              {createError}
+            </p>
+          )}
+
           <div className="flex flex-wrap gap-3 pt-2">
             <Button
-              onClick={onConfirm}
+              onClick={handleCreate}
+              disabled={isCreating}
               className="rounded-full h-11 px-7 font-mono text-[11px] tracking-[0.2em] uppercase bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              Begin interview →
+              {isCreating ? 'Creating…' : 'Create interview →'}
             </Button>
             <Button
               onClick={onRefine}
+              disabled={isCreating}
               variant="outline"
               className="rounded-full h-11 px-6 font-mono text-[11px] tracking-[0.2em] uppercase border-foreground/20 hover:bg-foreground/5"
             >
