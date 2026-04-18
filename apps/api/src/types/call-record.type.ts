@@ -1,4 +1,5 @@
 import type { CallAnalysis } from './call-analysis.type';
+import type { ResearchContext } from './research-context.type';
 
 type TranscriptEntry = {
   role: 'user' | 'agent';
@@ -11,8 +12,10 @@ type CallStatus = 'created' | 'in-progress' | 'processing' | 'completed' | 'fail
 type CallRecord = {
   id: string;
   agentId: string;
+  briefId: string;
   conversationId: string | null;
   status: CallStatus;
+  context: ResearchContext;
   transcript: TranscriptEntry[];
   analysis: CallAnalysis | null;
   createdAt: Date;

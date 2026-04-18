@@ -2,15 +2,17 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgentModule } from '../agent/agent.module';
 import { AnalysisModule } from '../analysis/analysis.module';
+import { PersistenceModule } from '../persistence/persistence.module';
+import { BriefsModule } from '../briefs/briefs.module';
 import { AgentFactoryService } from '../agent/agent-factory.service';
 import { AnalysisService } from '../analysis/analysis.service';
+import { SupabaseService } from '../persistence/supabase.service';
+import { BriefsService } from '../briefs/briefs.service';
 import { CallService } from './call.service';
 import { CallController } from './call.controller';
-import { researchContextSchema } from '../../types/research-context.type';
-import researchContextData from '../../data/research-context.json';
 
 @Module({
-  imports: [AgentModule, AnalysisModule],
+  imports: [AgentModule, AnalysisModule, PersistenceModule, BriefsModule],
   controllers: [CallController],
   providers: [
     {
@@ -18,18 +20,27 @@ import researchContextData from '../../data/research-context.json';
       useFactory: (
         agentFactory: AgentFactoryService,
         analysisService: AnalysisService,
+        persistence: SupabaseService,
+        briefsService: BriefsService,
         configService: ConfigService,
       ) => {
-        const context = researchContextSchema.parse(researchContextData);
         return new CallService(
           agentFactory,
           analysisService,
-          context,
+          persistence,
+          briefsService,
           configService.getOrThrow<string>('ELEVENLABS_API_KEY'),
         );
       },
-      inject: [AgentFactoryService, AnalysisService, ConfigService],
+      inject: [
+        AgentFactoryService,
+        AnalysisService,
+        SupabaseService,
+        BriefsService,
+        ConfigService,
+      ],
     },
   ],
+  exports: [CallService],
 })
 export class CallModule {}

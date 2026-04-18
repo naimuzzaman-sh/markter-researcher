@@ -1,6 +1,39 @@
-import { Module } from '@nestjs/common';
+import { existsSync } from 'fs';
+import { join, resolve } from 'path';
+import { Module, type DynamicModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { CallModule } from './modules/call/call.module';
+import { SetupModule } from './modules/setup/setup.module';
+import { BriefsModule } from './modules/briefs/briefs.module';
+
+/**
+ * Locate the built web app (apps/web/dist) relative to the running API.
+ * - In dev / `nest start`: __dirname is apps/api/src → walk up to apps/web/dist
+ * - In prod / `node dist/main`: __dirname is apps/api/dist → same walk-up still works
+ * - In a flat production bundle (Railway): fall back to ../web/dist alongside.
+ */
+function resolveWebDist(): string | null {
+  const candidates = [
+    resolve(__dirname, '..', '..', 'web', 'dist'),
+    resolve(__dirname, '..', '..', '..', 'web', 'dist'),
+    resolve(__dirname, '..', '..', '..', 'apps', 'web', 'dist'),
+    resolve(process.cwd(), 'apps', 'web', 'dist'),
+  ];
+  return candidates.find((p) => existsSync(join(p, 'index.html'))) ?? null;
+}
+
+const webDist = resolveWebDist();
+
+const staticImports: DynamicModule[] = webDist
+  ? [
+      ServeStaticModule.forRoot({
+        rootPath: webDist,
+        // Don't intercept API routes — these stay with their Nest controllers.
+        exclude: ['/calls/{*path}', '/setup/{*path}', '/briefs/{*path}'],
+      }),
+    ]
+  : [];
 
 @Module({
   imports: [
@@ -8,7 +41,10 @@ import { CallModule } from './modules/call/call.module';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
+    ...staticImports,
     CallModule,
+    SetupModule,
+    BriefsModule,
   ],
 })
 export class AppModule {}

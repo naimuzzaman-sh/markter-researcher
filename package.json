@@ -4,12 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter './apps/*' dev",
-    "build": "pnpm --filter './apps/*' build",
+    "build": "pnpm --filter web build && pnpm --filter api build",
+    "start": "pnpm --filter api start",
     "test": "pnpm --filter './apps/*' test",
     "typecheck": "pnpm --filter './apps/*' typecheck",
     "lint": "pnpm --filter './apps/*' lint"
   },
   "engines": {
-    "node": ">=18"
-  }
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.32.1"
 }

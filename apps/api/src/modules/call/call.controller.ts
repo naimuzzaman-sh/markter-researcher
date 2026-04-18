@@ -13,16 +13,28 @@ type EndCallBody = {
   conversationId: string;
 };
 
+type StartCallBody = {
+  briefId?: string;
+};
+
 @Controller('calls')
 export class CallController {
   constructor(private readonly callService: CallService) {}
 
   @Post('start')
-  async startCall() {
-    const call = await this.callService.startCall();
+  async startCall(@Body() body: StartCallBody) {
+    if (!body.briefId || typeof body.briefId !== 'string') {
+      throw new HttpException(
+        { message: 'briefId is required' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const call = await this.callService.startCall(body.briefId);
     return {
       callId: call.id,
       agentId: call.agentId,
+      briefId: call.briefId,
       signedUrl: call.signedUrl,
       status: call.status,
     };

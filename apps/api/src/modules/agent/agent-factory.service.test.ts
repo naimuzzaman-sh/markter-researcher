@@ -120,6 +120,35 @@ describe('AgentFactoryService', () => {
     expect(callBody.conversation_config.agent.first_message).toBeTruthy();
   });
 
+  it('should not set max_duration_seconds (ceiling is governed by plan/workspace default)', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ agent_id: 'agent-123' }),
+    });
+
+    await service.createAgent(testContext);
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    // We deliberately omit conversation.max_duration_seconds to avoid exceeding
+    // plan ceilings, which cause LiveKit to close the session immediately.
+    expect(callBody.conversation_config.conversation).toBeUndefined();
+  });
+
+  it('should set generous turn_timeout and disable silence end-call', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ agent_id: 'agent-123' }),
+    });
+
+    await service.createAgent(testContext);
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    // Generous (>=10s) so an interviewee pausing to think doesn't trigger a re-prompt.
+    expect(callBody.conversation_config.turn.turn_timeout).toBeGreaterThanOrEqual(10);
+    // -1 disables auto-hangup on silence.
+    expect(callBody.conversation_config.turn.silence_end_call_timeout).toBe(-1);
+  });
+
   it('should throw on API error', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
