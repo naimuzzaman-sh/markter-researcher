@@ -28,6 +28,19 @@ export class AgentFactoryService {
         agent: {
           prompt: {
             prompt: systemPrompt,
+            // Register the built-in `end_call` system tool so the agent can
+            // cleanly hang up after delivering its closing line. Agents created
+            // in the ElevenLabs dashboard get this by default; agents created
+            // via the API (like ours) must opt in explicitly. Without this the
+            // interviewee has to manually click "End interview" to stop.
+            tools: [
+              {
+                type: 'system',
+                name: 'end_call',
+                description:
+                  'Hang up the call after the closing thanks, once the interview is clearly finished.',
+              },
+            ],
           },
           first_message: `Hi there! Thanks for taking the time to chat with me today. I'm conducting a quick research interview on behalf of ${context.company.name} — it should only take about ${context.interviewSettings.maxDurationMinutes} minutes. Shall we get started?`,
           language: context.interviewSettings.language,

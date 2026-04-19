@@ -149,6 +149,24 @@ describe('AgentFactoryService', () => {
     expect(callBody.conversation_config.turn.silence_end_call_timeout).toBe(-1);
   });
 
+  it('should register the end_call system tool so the agent can hang up when the interview is over', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ agent_id: 'agent-123' }),
+    });
+
+    await service.createAgent(testContext);
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body as string);
+    const tools = callBody.conversation_config.agent.prompt.tools;
+    expect(Array.isArray(tools)).toBe(true);
+    const endCall = tools.find(
+      (t: { type?: string; name?: string }) =>
+        t.type === 'system' && t.name === 'end_call',
+    );
+    expect(endCall).toBeDefined();
+  });
+
   it('should throw on API error', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,

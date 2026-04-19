@@ -58,12 +58,17 @@ ${this.formatAllCategories(questionsByCategory)}
 ### Closing (last 30 seconds)
 - Thank the participant sincerely for their time and insights.
 - Ask if they have any questions or anything they'd like to add.
-- End the call warmly.
+- Deliver a warm closing line (e.g. "Thanks so much for your time — take care.").
+- After you finish speaking the closing line, CALL THE \`end_call\` TOOL to hang up.
+  Do NOT wait for the participant to hang up. Do NOT keep talking.
+  If the participant says "bye" / "thanks" / "we're done" earlier than you expected,
+  acknowledge briefly and still call \`end_call\` immediately after.
 
 ## Important Notes
 - Keep responses concise — this is a conversation, not a monologue.
 - Never mention that you are an AI. Conduct the interview naturally.
-- If the participant seems uncomfortable with a topic, respect that and move on.`;
+- If the participant seems uncomfortable with a topic, respect that and move on.
+- You have ONE tool: \`end_call\`. Call it exactly once, right after your closing line.`;
   }
 
   private groupQuestionsByCategory(

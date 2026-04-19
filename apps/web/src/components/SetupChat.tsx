@@ -42,10 +42,15 @@ function SetupChat({ onBriefCreated }: SetupChatProps) {
   }, []);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'smooth',
+    const el = scrollRef.current;
+    if (!el) return;
+    // Defer to next frame so React has committed the new DOM before we measure
+    // scrollHeight. Otherwise the scroll can fire before the new message row
+    // is painted and we end up 1 message short of the bottom.
+    const raf = requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     });
+    return () => cancelAnimationFrame(raf);
   }, [messages, isTyping]);
 
   const handleSend = useCallback(async () => {
@@ -96,9 +101,12 @@ function SetupChat({ onBriefCreated }: SetupChatProps) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    // h-screen (not min-h-screen) so the flex-1 messages area gets a bounded
+    // height and its overflow-y-auto actually scrolls instead of the whole
+    // page. Also removes the need for the sticky masthead.
+    <div className="h-screen flex flex-col">
       {/* Masthead */}
-      <header className="border-b border-border/60 sticky top-0 bg-background/85 backdrop-blur-sm z-10">
+      <header className="border-b border-border/60 bg-background/85 backdrop-blur-sm z-10 shrink-0">
         <div className="max-w-2xl mx-auto px-6 py-5 flex items-baseline justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
@@ -137,7 +145,7 @@ function SetupChat({ onBriefCreated }: SetupChatProps) {
       </div>
 
       {/* Input */}
-      <div className="border-t border-border/60 bg-background/85 backdrop-blur-sm">
+      <div className="border-t border-border/60 bg-background/85 backdrop-blur-sm shrink-0">
         <div className="max-w-2xl mx-auto px-6 py-5">
           <div className="flex items-end gap-3">
             <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground pb-3 pt-3 shrink-0">
