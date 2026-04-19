@@ -5,8 +5,10 @@ import {
   HttpStatus,
   Logger,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { SetupService } from './setup.service';
+import { JwtGuard } from '../auth/jwt.guard';
 
 type ChatBody = {
   sessionId: string;
@@ -14,6 +16,7 @@ type ChatBody = {
 };
 
 @Controller('setup')
+@UseGuards(JwtGuard)
 export class SetupController {
   private readonly logger = new Logger(SetupController.name);
 

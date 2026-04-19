@@ -7,8 +7,11 @@ import type { ResearchContext } from '../../types/research-context.type';
 export class BriefsService {
   constructor(private readonly persistence: SupabaseService) {}
 
-  async createBrief(context: ResearchContext): Promise<{ id: string }> {
-    const id = await this.persistence.insertBrief(context);
+  async createBrief(
+    context: ResearchContext,
+    ownerId: string,
+  ): Promise<{ id: string }> {
+    const id = await this.persistence.insertBrief(context, ownerId);
     return { id };
   }
 

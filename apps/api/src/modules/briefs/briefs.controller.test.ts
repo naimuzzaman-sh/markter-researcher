@@ -3,6 +3,9 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { BriefsController } from './briefs.controller';
 import type { BriefsService } from './briefs.service';
 import type { ResearchContext } from '../../types/research-context.type';
+import type { AuthUser } from '../persistence/supabase.service';
+
+const FAKE_USER: AuthUser = { id: 'user-1', email: 'a@b.com', phone: null };
 
 const validContext: ResearchContext = {
   company: { name: 'Co', industry: 'SaaS', description: 'desc' },
@@ -44,15 +47,21 @@ describe('BriefsController', () => {
   });
 
   describe('POST /briefs', () => {
-    it('creates and returns briefId on valid body', async () => {
-      const result = await controller.createBrief({ context: validContext });
+    it('creates and returns briefId, stamping owner_id from the authenticated user', async () => {
+      const result = await controller.createBrief(
+        { context: validContext },
+        FAKE_USER,
+      );
       expect(result).toEqual({ briefId: 'new-brief-id' });
-      expect(service.createBrief).toHaveBeenCalledWith(validContext);
+      expect(service.createBrief).toHaveBeenCalledWith(
+        validContext,
+        FAKE_USER.id,
+      );
     });
 
     it('rejects invalid context with 400', async () => {
       await expect(
-        controller.createBrief({ context: { bogus: true } }),
+        controller.createBrief({ context: { bogus: true } }, FAKE_USER),
       ).rejects.toMatchObject({
         status: HttpStatus.BAD_REQUEST,
       });

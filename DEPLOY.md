@@ -40,6 +40,12 @@ In the Railway service → **Variables** tab, add:
 | `GEMINI_API_KEY` | `AIza...` |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `SUPABASE_ANON_KEY` | `eyJ...` |
+| `VITE_SUPABASE_URL` | same as `SUPABASE_URL` — read by the React build |
+| `VITE_SUPABASE_ANON_KEY` | same as `SUPABASE_ANON_KEY` — read by the React build |
+
+> The `VITE_*` variants are baked into the **frontend bundle at build time**, so
+> they must be set before the deploy build runs. Same values as the backend
+> versions; the Vite bundler just needs its own prefix convention.
 
 `PORT` is set automatically by Railway — don't override it. The app listens on
 `0.0.0.0:$PORT`.

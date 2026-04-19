@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
+import { AuthBadge } from './editorial';
 import { createBrief, startSetup, sendSetupMessage } from '@/lib/api';
 import type { ResearchContext } from '@/types/research-context.type';
 
@@ -107,8 +108,11 @@ function SetupChat({ onBriefCreated }: SetupChatProps) {
               The Interview Journal
             </h1>
           </div>
-          <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
-            Pre-brief
+          <div className="flex items-baseline gap-4">
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+              Pre-brief
+            </div>
+            <AuthBadge />
           </div>
         </div>
       </header>
@@ -267,8 +271,11 @@ function ContextReview({
               The Interview Journal
             </h1>
           </div>
-          <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-accent">
-            Ready
+          <div className="flex items-baseline gap-4">
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-accent">
+              Ready
+            </div>
+            <AuthBadge />
           </div>
         </div>
       </header>

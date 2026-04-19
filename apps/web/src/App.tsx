@@ -1,9 +1,14 @@
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import LandingRoute from './routes/LandingRoute';
+import LoginRoute from './routes/LoginRoute';
+import SignupRoute from './routes/SignupRoute';
 import SetupRoute from './routes/SetupRoute';
 import BriefCreatedRoute from './routes/BriefCreatedRoute';
 import InterviewRoute from './routes/InterviewRoute';
 import { EditorialLayout, Kicker } from './components/editorial';
 import { Button } from './components/ui/button';
+import { AuthProvider } from './auth/AuthProvider';
+import { RequireAuth } from './auth/RequireAuth';
 
 function NotFound() {
   return (
@@ -21,7 +26,7 @@ function NotFound() {
             variant="outline"
             className="rounded-full h-11 px-6 font-mono text-[11px] tracking-[0.2em] uppercase border-foreground/20 hover:bg-foreground/5"
           >
-            Back to setup →
+            Back to home →
           </Button>
         </Link>
       </div>
@@ -31,14 +36,25 @@ function NotFound() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<SetupRoute />} />
-        <Route path="/briefs/:briefId" element={<BriefCreatedRoute />} />
-        <Route path="/interview/:briefId" element={<InterviewRoute />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public */}
+          <Route path="/" element={<LandingRoute />} />
+          <Route path="/login" element={<LoginRoute />} />
+          <Route path="/signup" element={<SignupRoute />} />
+          <Route path="/interview/:briefId" element={<InterviewRoute />} />
+
+          {/* Protected (researcher only) */}
+          <Route element={<RequireAuth />}>
+            <Route path="/setup" element={<SetupRoute />} />
+            <Route path="/briefs/:briefId" element={<BriefCreatedRoute />} />
+          </Route>
+
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

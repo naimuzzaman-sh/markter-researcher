@@ -5,10 +5,14 @@ import type { ResearchContext } from '../../types/research-context.type';
 
 // Mock builder chain — each call returns `this` until a terminal .single() / .insert() / .maybeSingle() resolves.
 const mockFrom = vi.fn();
+const mockAuthGetUser = vi.fn();
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(() => ({
     from: mockFrom,
+    auth: {
+      getUser: mockAuthGetUser,
+    },
   })),
 }));
 
@@ -123,7 +127,9 @@ describe('SupabaseService', () => {
   });
 
   describe('insertBrief', () => {
-    it('should insert into briefs and return the new id', async () => {
+    const OWNER_ID = 'owner-uuid-123';
+
+    it('should insert into briefs with research_context + owner_id and return the new id', async () => {
       const single = vi.fn().mockResolvedValue({
         data: { id: 'new-brief-uuid' },
         error: null,
@@ -132,10 +138,13 @@ describe('SupabaseService', () => {
       const insert = vi.fn().mockReturnValue({ select });
       mockFrom.mockReturnValue({ insert });
 
-      const id = await service.insertBrief(sampleContext);
+      const id = await service.insertBrief(sampleContext, OWNER_ID);
 
       expect(mockFrom).toHaveBeenCalledWith('briefs');
-      expect(insert).toHaveBeenCalledWith({ research_context: sampleContext });
+      expect(insert).toHaveBeenCalledWith({
+        research_context: sampleContext,
+        owner_id: OWNER_ID,
+      });
       expect(select).toHaveBeenCalledWith('id');
       expect(id).toBe('new-brief-uuid');
     });
@@ -149,7 +158,9 @@ describe('SupabaseService', () => {
         insert: () => ({ select: () => ({ single }) }),
       });
 
-      await expect(service.insertBrief(sampleContext)).rejects.toThrow(/boom/);
+      await expect(service.insertBrief(sampleContext, OWNER_ID)).rejects.toThrow(
+        /boom/,
+      );
     });
   });
 
@@ -199,6 +210,46 @@ describe('SupabaseService', () => {
       });
 
       await expect(service.getBriefById('id')).rejects.toThrow(/db exploded/);
+    });
+  });
+
+  describe('getUserFromJwt', () => {
+    it('should return the user when the jwt is valid', async () => {
+      mockAuthGetUser.mockResolvedValueOnce({
+        data: { user: { id: 'user-123', email: 'a@b.com' } },
+        error: null,
+      });
+
+      const user = await service.getUserFromJwt('valid-jwt');
+
+      expect(mockAuthGetUser).toHaveBeenCalledWith('valid-jwt');
+      expect(user?.id).toBe('user-123');
+      expect(user?.email).toBe('a@b.com');
+    });
+
+    it('should return null when Supabase returns an error', async () => {
+      mockAuthGetUser.mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: 'invalid JWT' },
+      });
+
+      const user = await service.getUserFromJwt('bad-jwt');
+      expect(user).toBeNull();
+    });
+
+    it('should return null when no user in response', async () => {
+      mockAuthGetUser.mockResolvedValueOnce({
+        data: { user: null },
+        error: null,
+      });
+      const user = await service.getUserFromJwt('nobody');
+      expect(user).toBeNull();
+    });
+
+    it('should return null when the Supabase client throws', async () => {
+      mockAuthGetUser.mockRejectedValueOnce(new Error('network'));
+      const user = await service.getUserFromJwt('anything');
+      expect(user).toBeNull();
     });
   });
 });

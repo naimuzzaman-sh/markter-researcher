@@ -43,10 +43,13 @@ describe('BriefsService', () => {
   });
 
   describe('createBrief', () => {
-    it('returns the new brief id', async () => {
-      const { id } = await service.createBrief(sampleContext);
+    it('passes owner to persistence and returns the new brief id', async () => {
+      const { id } = await service.createBrief(sampleContext, 'owner-1');
       expect(id).toBe('brief-uuid');
-      expect(persistence.insertBrief).toHaveBeenCalledWith(sampleContext);
+      expect(persistence.insertBrief).toHaveBeenCalledWith(
+        sampleContext,
+        'owner-1',
+      );
     });
   });
 

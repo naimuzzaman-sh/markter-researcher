@@ -1,8 +1,23 @@
 import type { ResearchContext } from '@/types/research-context.type';
+import { supabase } from '@/lib/supabase';
 
 const CALLS_BASE = '/calls';
 const SETUP_BASE = '/setup';
 const BRIEFS_BASE = '/briefs';
+
+/**
+ * Returns an Authorization header object if a Supabase session exists,
+ * otherwise an empty object. Used by researcher-only endpoints.
+ *
+ * Routes that attach this: startSetup, sendSetupMessage, createBrief.
+ * Routes that deliberately DON'T: getBrief, startCall, endCall, getCall
+ *   — interviewees are anonymous and must be able to call them without auth.
+ */
+async function authHeader(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 type StartCallResponse = {
   callId: string;
@@ -71,18 +86,34 @@ async function readError(
   response: Response,
   fallback: string,
 ): Promise<string> {
+  // Clone so we can read the body twice if needed (json first, then text fallback).
+  const clone = response.clone();
   try {
     const body = (await response.json()) as { message?: string | string[] };
     if (typeof body.message === 'string') return body.message;
     if (Array.isArray(body.message)) return body.message.join('; ');
+    // JSON but no recognizable message — dump for console debugging.
+    console.error('[api] unexpected error body', body);
   } catch {
-    // ignore JSON parse failures
+    // Not JSON — dump the raw text so we can see what the server returned.
+    try {
+      const raw = await clone.text();
+      console.error('[api] non-JSON error response', {
+        status: response.status,
+        body: raw.slice(0, 1000),
+      });
+    } catch {
+      // ignore
+    }
   }
   return `${fallback} (HTTP ${response.status})`;
 }
 
 async function startSetup(): Promise<StartSetupResponse> {
-  const response = await fetch(`${SETUP_BASE}/start`, { method: 'POST' });
+  const response = await fetch(`${SETUP_BASE}/start`, {
+    method: 'POST',
+    headers: { ...(await authHeader()) },
+  });
   if (!response.ok)
     throw new Error(await readError(response, 'Failed to start setup'));
   return response.json() as Promise<StartSetupResponse>;
@@ -94,7 +125,7 @@ async function sendSetupMessage(
 ): Promise<SetupChatResponse> {
   const response = await fetch(`${SETUP_BASE}/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify({ sessionId, message }),
   });
   if (!response.ok) {
@@ -108,7 +139,7 @@ async function createBrief(
 ): Promise<CreateBriefResponse> {
   const response = await fetch(BRIEFS_BASE, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify({ context }),
   });
   if (!response.ok)

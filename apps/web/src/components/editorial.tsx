@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/auth/AuthProvider';
 
 type EditorialLayoutProps = {
   children: ReactNode;
@@ -26,14 +28,50 @@ function EditorialLayout({
               The Interview Journal
             </h1>
           </div>
-          <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-accent">
-            {statusLabel}
+          <div className="flex items-baseline gap-4">
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-accent">
+              {statusLabel}
+            </div>
+            <AuthBadge />
           </div>
         </div>
       </header>
       <div className="flex-1">
         <div className="max-w-2xl mx-auto px-6 py-12">{children}</div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Small signed-in affordance in the header: email + "Sign out" link.
+ * Renders nothing if there's no session (keeps public pages clean).
+ */
+function AuthBadge() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  if (!user) return null;
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/', { replace: true });
+  };
+
+  const identifier = user.email ?? user.phone ?? 'signed in';
+
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground truncate max-w-[160px]">
+        {identifier}
+      </span>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="font-mono text-[10px] tracking-[0.2em] uppercase text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
+      >
+        Sign out
+      </button>
     </div>
   );
 }
@@ -94,4 +132,4 @@ function SentimentPill({
   );
 }
 
-export { EditorialLayout, Kicker, Section, TypingDots, SentimentPill };
+export { EditorialLayout, Kicker, Section, TypingDots, SentimentPill, AuthBadge };

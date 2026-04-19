@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { SavedInterview } from '../../types/saved-interview.type';
 import type { Brief } from '../../types/brief.type';
@@ -13,12 +13,45 @@ type BriefRow = {
   created_at: string;
 };
 
+/** Minimal user shape we care about from Supabase Auth. */
+export type AuthUser = {
+  id: string;
+  email: string | null;
+  phone: string | null;
+};
+
 @Injectable()
 export class SupabaseService {
+  private readonly logger = new Logger(SupabaseService.name);
   private readonly client: SupabaseClient;
 
   constructor(url: string, anonKey: string) {
     this.client = createClient(url, anonKey);
+  }
+
+  /**
+   * Verify a Supabase-issued JWT by asking Supabase to decode it.
+   * Returns the authenticated user, or null if the token is missing/invalid/expired.
+   * We explicitly swallow network errors and return null so callers can throw a
+   * clean 401 regardless of upstream failure mode.
+   */
+  async getUserFromJwt(jwt: string): Promise<AuthUser | null> {
+    try {
+      const { data, error } = await this.client.auth.getUser(jwt);
+      if (error || !data?.user) {
+        return null;
+      }
+      return {
+        id: data.user.id,
+        email: data.user.email ?? null,
+        phone: data.user.phone ?? null,
+      };
+    } catch (err) {
+      this.logger.warn(
+        `getUserFromJwt threw: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
   }
 
   async saveInterview(interview: SavedInterview): Promise<void> {
@@ -44,10 +77,13 @@ export class SupabaseService {
     }
   }
 
-  async insertBrief(researchContext: ResearchContext): Promise<string> {
+  async insertBrief(
+    researchContext: ResearchContext,
+    ownerId: string,
+  ): Promise<string> {
     const { data, error } = await this.client
       .from('briefs')
-      .insert({ research_context: researchContext })
+      .insert({ research_context: researchContext, owner_id: ownerId })
       .select('id')
       .single();
 
