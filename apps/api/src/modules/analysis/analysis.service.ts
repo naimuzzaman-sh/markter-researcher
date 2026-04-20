@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
-import { callAnalysisSchema, type CallAnalysis } from '../../types/call-analysis.type';
-import type { TranscriptEntry } from '../../types/call-record.type';
-import type { ResearchQuestion } from '../../types/research-context.type';
+import { callAnalysisSchema, type CallAnalysis } from '@market-researcher/shared';
+import type { TranscriptEntry } from '@market-researcher/shared';
+import type { ResearchQuestion } from '@market-researcher/shared';
 
 @Injectable()
 export class AnalysisService {

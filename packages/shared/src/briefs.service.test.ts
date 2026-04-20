@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BriefsService } from './briefs.service';
-import type { SupabaseService } from '../persistence/supabase.service';
-import type { ResearchContext } from '../../types/research-context.type';
+import type { SupabaseService } from './supabase.service';
+import type { ResearchContext } from './types/research-context.type';
 
 const sampleContext: ResearchContext = {
   company: { name: 'Co', industry: 'SaaS', description: 'desc' },
@@ -38,6 +38,13 @@ describe('BriefsService', () => {
         researchContext: sampleContext,
         createdAt: new Date('2026-04-18T10:00:00Z'),
       }),
+      listBriefsByOwner: vi.fn().mockResolvedValue([
+        {
+          id: 'b1',
+          researchContext: sampleContext,
+          createdAt: new Date('2026-04-20T12:00:00Z'),
+        },
+      ]),
     } as unknown as SupabaseService;
     service = new BriefsService(persistence);
   });
@@ -64,6 +71,18 @@ describe('BriefsService', () => {
       persistence.getBriefById = vi.fn().mockResolvedValue(null);
       const brief = await service.getBrief('missing');
       expect(brief).toBeNull();
+    });
+  });
+
+  describe('listBriefs', () => {
+    it('delegates to persistence.listBriefsByOwner with the owner + limit', async () => {
+      const briefs = await service.listBriefs('owner-1', 25);
+      expect(persistence.listBriefsByOwner).toHaveBeenCalledWith(
+        'owner-1',
+        25,
+      );
+      expect(briefs).toHaveLength(1);
+      expect(briefs[0].id).toBe('b1');
     });
   });
 });

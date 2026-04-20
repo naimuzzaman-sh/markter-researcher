@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PromptBuilderService } from './prompt-builder.service';
-import type { ResearchContext } from '../../types/research-context.type';
+import type { ResearchContext } from '@market-researcher/shared';
 
 type AgentFactoryConfig = {
   apiKey: string;

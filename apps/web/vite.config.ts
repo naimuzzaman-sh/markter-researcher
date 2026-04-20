@@ -38,6 +38,18 @@ export default defineConfig({
         bypass: (req) =>
           req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
       },
+      '/interviews': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        bypass: (req) =>
+          req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
+      },
+      '/auth': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        bypass: (req) =>
+          req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
+      },
     },
   },
 });

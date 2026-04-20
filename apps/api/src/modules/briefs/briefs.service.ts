@@ -1,21 +1,19 @@
 import { Injectable } from '@nestjs/common';
+import { BriefsService as Core } from '@market-researcher/shared';
 import { SupabaseService } from '../persistence/supabase.service';
-import type { Brief } from '../../types/brief.type';
-import type { ResearchContext } from '../../types/research-context.type';
 
+/**
+ * Nest-injectable wrapper around the shared `BriefsService`. Behaviour lives
+ * in `@market-researcher/shared`; this class only participates in DI.
+ *
+ * The constructor looks redundant but is required: Nest's DI uses the
+ * constructor parameter metadata (emitted by `emitDecoratorMetadata`) on THIS
+ * class — not on the parent — to know what to inject.
+ */
 @Injectable()
-export class BriefsService {
-  constructor(private readonly persistence: SupabaseService) {}
-
-  async createBrief(
-    context: ResearchContext,
-    ownerId: string,
-  ): Promise<{ id: string }> {
-    const id = await this.persistence.insertBrief(context, ownerId);
-    return { id };
-  }
-
-  async getBrief(id: string): Promise<Brief | null> {
-    return this.persistence.getBriefById(id);
+export class BriefsService extends Core {
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor(persistence: SupabaseService) {
+    super(persistence);
   }
 }

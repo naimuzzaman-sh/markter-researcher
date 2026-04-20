@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { ResearchContext, ResearchQuestion } from '../../types/research-context.type';
+import type { ResearchContext, ResearchQuestion } from '@market-researcher/shared';
 
 @Injectable()
 export class PromptBuilderService {

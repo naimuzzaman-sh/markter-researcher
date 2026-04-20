@@ -2,24 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { GoogleGenAI, Type } from '@google/genai';
 import { randomUUID } from 'crypto';
 import {
+  BRIEF_SETUP_GUIDANCE,
   researchContextSchema,
+  type ChatMessage,
   type ResearchContext,
-} from '../../types/research-context.type';
-import type { ChatMessage, SetupSession } from '../../types/setup-session.type';
+  type SetupSession,
+} from '@market-researcher/shared';
 
-const SYSTEM_PROMPT = `You are a research setup assistant. You interview a researcher to understand what they want to learn from their own interviewees, then produce a structured ResearchContext.
-
-## How you behave
-- Conversational, warm, concise. 1–2 short questions per turn.
-- Skip what's already clear from earlier answers.
-- Merge related questions rather than drip-feeding.
-- Keep setup under ~2 minutes for a motivated user.
-
-## Completion
-- As soon as you have the minimum required fields (product/company, target audience, research objective), offer to proceed: "I have enough to start — should I kick off the interview, or add more detail?"
-- When the user confirms, finalize: set done=true and fill in the context field with a complete, valid ResearchContext.
-- Generate 4–7 tailored interview questions across categories: background, usage, pain-points, value-proposition, competitor, pricing — pick what fits the research goal.
-- Use sensible defaults for things not explicitly discussed (industry can be inferred; concerns/signals arrays can be empty; interviewSettings: maxDurationMinutes=5, tone="friendly-professional", language="en").
+/**
+ * Composed from two parts:
+ *  - BRIEF_SETUP_GUIDANCE (shared) — what a ResearchContext is and how to build one.
+ *    The MCP's preview_brief / create_brief tool descriptions include the same text.
+ *  - Gemini-specific output-format instructions — only make sense for Gemini's
+ *    schema-forced JSON output; not exposed to the MCP.
+ */
+const SYSTEM_PROMPT = `${BRIEF_SETUP_GUIDANCE}
 
 ## Output format
 You MUST always respond as JSON with this shape:

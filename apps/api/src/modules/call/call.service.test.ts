@@ -4,7 +4,7 @@ import type { AgentFactoryService } from '../agent/agent-factory.service';
 import type { AnalysisService } from '../analysis/analysis.service';
 import type { SupabaseService } from '../persistence/supabase.service';
 import type { BriefsService } from '../briefs/briefs.service';
-import type { ResearchContext } from '../../types/research-context.type';
+import type { ResearchContext } from '@market-researcher/shared';
 
 const TEST_BRIEF_ID = 'b9a7e7e1-8d3a-4f7b-9e4b-25b4e0c3a1f2';
 

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 const CALLS_BASE = '/calls';
 const SETUP_BASE = '/setup';
 const BRIEFS_BASE = '/briefs';
+const AUTH_DEVICE_BASE = '/auth/device';
 
 /**
  * Returns an Authorization header object if a Supabase session exists,
@@ -186,6 +187,40 @@ async function getCall(callId: string): Promise<CallRecord> {
   return response.json() as Promise<CallRecord>;
 }
 
+/**
+ * Hand off the current Supabase session to an MCP device waiting to
+ * authorize. The backend validates the access token via JwtGuard and
+ * stashes { accessToken, refreshToken, tokenExpiresAt, userId } so the
+ * MCP's next poll picks it up. Requires the user to be signed in.
+ */
+async function authorizeDevice(userCode: string): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) {
+    throw new Error('You need to be signed in to authorize a device.');
+  }
+  const response = await fetch(`${AUTH_DEVICE_BASE}/authorize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+    body: JSON.stringify({
+      userCode,
+      refreshToken: data.session.refresh_token,
+      tokenExpiresAt: data.session.expires_at ?? 0,
+    }),
+  });
+  if (!response.ok)
+    throw new Error(await readError(response, 'Failed to authorize device'));
+}
+
+async function denyDevice(userCode: string): Promise<void> {
+  const response = await fetch(`${AUTH_DEVICE_BASE}/deny`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+    body: JSON.stringify({ userCode }),
+  });
+  if (!response.ok)
+    throw new Error(await readError(response, 'Failed to deny device'));
+}
+
 export {
   startCall,
   endCall,
@@ -194,6 +229,8 @@ export {
   sendSetupMessage,
   createBrief,
   getBrief,
+  authorizeDevice,
+  denyDevice,
 };
 export type {
   StartCallResponse,

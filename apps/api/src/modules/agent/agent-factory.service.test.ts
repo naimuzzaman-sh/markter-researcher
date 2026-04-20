@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentFactoryService } from './agent-factory.service';
 import { PromptBuilderService } from './prompt-builder.service';
-import type { ResearchContext } from '../../types/research-context.type';
+import type { ResearchContext } from '@market-researcher/shared';
 
 const testContext: ResearchContext = {
   company: {

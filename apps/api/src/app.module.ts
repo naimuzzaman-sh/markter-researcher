@@ -6,6 +6,8 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { CallModule } from './modules/call/call.module';
 import { SetupModule } from './modules/setup/setup.module';
 import { BriefsModule } from './modules/briefs/briefs.module';
+import { InterviewsModule } from './modules/interviews/interviews.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 /**
  * Locate the built web app (apps/web/dist) relative to the running API.
@@ -30,7 +32,13 @@ const staticImports: DynamicModule[] = webDist
       ServeStaticModule.forRoot({
         rootPath: webDist,
         // Don't intercept API routes — these stay with their Nest controllers.
-        exclude: ['/calls/{*path}', '/setup/{*path}', '/briefs/{*path}'],
+        exclude: [
+          '/calls/{*path}',
+          '/setup/{*path}',
+          '/briefs/{*path}',
+          '/interviews/{*path}',
+          '/auth/{*path}',
+        ],
       }),
     ]
   : [];
@@ -45,6 +53,8 @@ const staticImports: DynamicModule[] = webDist
     CallModule,
     SetupModule,
     BriefsModule,
+    InterviewsModule,
+    AuthModule,
   ],
 })
 export class AppModule {}

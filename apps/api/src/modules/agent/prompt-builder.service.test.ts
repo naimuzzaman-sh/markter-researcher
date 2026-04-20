@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PromptBuilderService } from './prompt-builder.service';
-import type { ResearchContext } from '../../types/research-context.type';
+import type { ResearchContext } from '@market-researcher/shared';
 
 const testContext: ResearchContext = {
   company: {

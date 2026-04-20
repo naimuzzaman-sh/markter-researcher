@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AnalysisService } from './analysis.service';
-import type { TranscriptEntry } from '../../types/call-record.type';
+import type { TranscriptEntry } from '@market-researcher/shared';
 
 const mockGenerateContent = vi.fn();
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { HttpException, HttpStatus } from '@nestjs/common';
 import { BriefsController } from './briefs.controller';
 import type { BriefsService } from './briefs.service';
-import type { ResearchContext } from '../../types/research-context.type';
+import type { ResearchContext } from '@market-researcher/shared';
 import type { AuthUser } from '../persistence/supabase.service';
 
 const FAKE_USER: AuthUser = { id: 'user-1', email: 'a@b.com', phone: null };
@@ -42,6 +42,18 @@ describe('BriefsController', () => {
         researchContext: validContext,
         createdAt: new Date(),
       }),
+      listBriefs: vi.fn().mockResolvedValue([
+        {
+          id: 'b1',
+          researchContext: validContext,
+          createdAt: new Date('2026-04-20T12:00:00Z'),
+        },
+        {
+          id: 'b2',
+          researchContext: validContext,
+          createdAt: new Date('2026-04-19T12:00:00Z'),
+        },
+      ]),
     } as unknown as BriefsService;
     controller = new BriefsController(service);
   });
@@ -83,6 +95,30 @@ describe('BriefsController', () => {
       await expect(controller.getBrief('missing')).rejects.toMatchObject({
         status: HttpStatus.NOT_FOUND,
       });
+    });
+  });
+
+  describe('GET /briefs', () => {
+    it('returns the authenticated user\'s briefs mapped to the wire shape', async () => {
+      const result = await controller.listBriefs(FAKE_USER, undefined);
+      expect(service.listBriefs).toHaveBeenCalledWith(FAKE_USER.id, 20);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({
+        briefId: 'b1',
+        researchContext: validContext,
+      });
+      expect(typeof result[0].createdAt).toBe('string');
+    });
+
+    it('honours the limit query param when provided', async () => {
+      await controller.listBriefs(FAKE_USER, '50');
+      expect(service.listBriefs).toHaveBeenCalledWith(FAKE_USER.id, 50);
+    });
+
+    it('clamps limit to sane bounds (rejects non-numeric)', async () => {
+      await controller.listBriefs(FAKE_USER, 'abc');
+      // Falls back to default when input is non-numeric
+      expect(service.listBriefs).toHaveBeenCalledWith(FAKE_USER.id, 20);
     });
   });
 });

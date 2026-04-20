@@ -4,8 +4,8 @@ import { AgentFactoryService } from '../agent/agent-factory.service';
 import { AnalysisService } from '../analysis/analysis.service';
 import { SupabaseService } from '../persistence/supabase.service';
 import { BriefsService } from '../briefs/briefs.service';
-import type { CallRecord, TranscriptEntry } from '../../types/call-record.type';
-import type { SavedInterview } from '../../types/saved-interview.type';
+import type { CallRecord, TranscriptEntry } from '@market-researcher/shared';
+import type { SavedInterview } from '@market-researcher/shared';
 
 const ELEVENLABS_API_BASE = 'https://api.elevenlabs.io/v1/convai';
 
