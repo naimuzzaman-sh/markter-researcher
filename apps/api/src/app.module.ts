@@ -8,6 +8,10 @@ import { SetupModule } from './modules/setup/setup.module';
 import { BriefsModule } from './modules/briefs/briefs.module';
 import { InterviewsModule } from './modules/interviews/interviews.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AgentJobsModule } from './modules/agent-jobs/agent-jobs.module';
+import { ContactsModule } from './modules/contacts/contacts.module';
+import { CandidatesModule } from './modules/candidates/candidates.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 
 /**
  * Locate the built web app (apps/web/dist) relative to the running API.
@@ -38,6 +42,11 @@ const staticImports: DynamicModule[] = webDist
           '/briefs/{*path}',
           '/interviews/{*path}',
           '/auth/{*path}',
+          '/agent-jobs/{*path}',
+          '/contacts/{*path}',
+          '/candidates/{*path}',
+          '/discovery/{*path}',
+          '/briefs/{*path}/candidates',
         ],
       }),
     ]
@@ -55,6 +64,10 @@ const staticImports: DynamicModule[] = webDist
     BriefsModule,
     InterviewsModule,
     AuthModule,
+    AgentJobsModule,
+    ContactsModule,
+    CandidatesModule,
+    DiscoveryModule,
   ],
 })
 export class AppModule {}
