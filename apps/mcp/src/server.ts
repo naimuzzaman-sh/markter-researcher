@@ -24,6 +24,10 @@ import {
   createBriefConfig,
   makeCreateBriefHandler,
 } from './tools/create-brief.js';
+import {
+  updateBriefConfig,
+  makeUpdateBriefHandler,
+} from './tools/update-brief.js';
 import { withAuth } from './tools/with-auth.js';
 
 /**
@@ -81,6 +85,12 @@ export function buildServer(client: ApiClient, baseUrl: string): McpServer {
     'create_brief',
     createBriefConfig,
     withAuth(makeCreateBriefHandler(client, baseUrl)),
+  );
+
+  server.registerTool(
+    'update_brief',
+    updateBriefConfig,
+    withAuth(makeUpdateBriefHandler(server, client, baseUrl)),
   );
 
   return server;

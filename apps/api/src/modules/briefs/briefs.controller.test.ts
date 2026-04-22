@@ -54,6 +54,11 @@ describe('BriefsController', () => {
           createdAt: new Date('2026-04-19T12:00:00Z'),
         },
       ]),
+      updateBrief: vi.fn().mockResolvedValue({
+        id: 'existing',
+        researchContext: validContext,
+        createdAt: new Date('2026-04-20T12:00:00Z'),
+      }),
     } as unknown as BriefsService;
     controller = new BriefsController(service);
   });
@@ -119,6 +124,80 @@ describe('BriefsController', () => {
       await controller.listBriefs(FAKE_USER, 'abc');
       // Falls back to default when input is non-numeric
       expect(service.listBriefs).toHaveBeenCalledWith(FAKE_USER.id, 20);
+    });
+  });
+
+  describe('PATCH /briefs/:id', () => {
+    it('applies the patch scoped to the authenticated user and returns the updated brief', async () => {
+      const patchedContext = {
+        ...validContext,
+        research: { ...validContext.research, objective: 'new objective' },
+      };
+      service.updateBrief = vi.fn().mockResolvedValue({
+        id: 'existing',
+        researchContext: patchedContext,
+        createdAt: new Date('2026-04-20T12:00:00Z'),
+      });
+
+      const result = await controller.updateBrief(
+        'existing',
+        { patch: { research: { objective: 'new objective' } } },
+        FAKE_USER,
+      );
+
+      expect(result).toMatchObject({
+        briefId: 'existing',
+        researchContext: patchedContext,
+      });
+      expect(typeof result.createdAt).toBe('string');
+      expect(service.updateBrief).toHaveBeenCalledWith(
+        'existing',
+        FAKE_USER.id,
+        { research: { objective: 'new objective' } },
+      );
+    });
+
+    it('rejects a malformed patch with 400 (and does not hit the service)', async () => {
+      await expect(
+        controller.updateBrief(
+          'existing',
+          { patch: { research: { objective: '' } } },
+          FAKE_USER,
+        ),
+      ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
+      expect(service.updateBrief).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the brief does not exist or is not owned by the caller', async () => {
+      service.updateBrief = vi.fn().mockResolvedValue(null);
+      await expect(
+        controller.updateBrief(
+          'missing',
+          { patch: { research: { objective: 'new' } } },
+          FAKE_USER,
+        ),
+      ).rejects.toMatchObject({ status: HttpStatus.NOT_FOUND });
+    });
+
+    it('translates a ZodError from the service (invalid merged context) into a 400', async () => {
+      // Service throws when the patch shape slips past controller validation
+      // but the merged context is rejected by researchContextSchema.
+      service.updateBrief = vi.fn().mockImplementation(() => {
+        const err = new Error('merged context invalid') as Error & {
+          name: string;
+          issues: unknown[];
+        };
+        err.name = 'ZodError';
+        err.issues = [{ path: ['research'], message: 'x' }];
+        throw err;
+      });
+      await expect(
+        controller.updateBrief(
+          'existing',
+          { patch: {} },
+          FAKE_USER,
+        ),
+      ).rejects.toMatchObject({ status: HttpStatus.BAD_REQUEST });
     });
   });
 });

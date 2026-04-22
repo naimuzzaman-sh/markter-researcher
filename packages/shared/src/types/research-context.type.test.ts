@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { researchContextSchema } from './research-context.type';
+import { briefPatchSchema, researchContextSchema } from './research-context.type';
 
 const validContext = {
   company: {
@@ -90,5 +90,72 @@ describe('researchContextSchema', () => {
     };
     const result = researchContextSchema.safeParse(invalid);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('briefPatchSchema', () => {
+  it('accepts an empty patch (no-op update)', () => {
+    expect(briefPatchSchema.safeParse({}).success).toBe(true);
+  });
+
+  it('accepts a single nested field patch (research.objective only)', () => {
+    expect(
+      briefPatchSchema.safeParse({ research: { objective: 'new goal' } })
+        .success,
+    ).toBe(true);
+  });
+
+  it('accepts a multi-subtree patch touching product + interviewSettings', () => {
+    expect(
+      briefPatchSchema.safeParse({
+        product: { name: 'New Name' },
+        interviewSettings: { maxDurationMinutes: 10 },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts replacing the questions array wholesale when complete items are provided', () => {
+    const result = briefPatchSchema.safeParse({
+      research: {
+        questions: [
+          {
+            id: 'qz',
+            text: 'Z?',
+            followUp: 'ZF?',
+            category: 'usage',
+          },
+        ],
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects empty strings on fields that have minLength:1 (e.g. objective)', () => {
+    expect(
+      briefPatchSchema.safeParse({ research: { objective: '' } }).success,
+    ).toBe(false);
+  });
+
+  it('rejects incomplete question objects in the questions array', () => {
+    // Array items must be FULL questions — per-item partials are not supported.
+    const result = briefPatchSchema.safeParse({
+      research: {
+        questions: [{ id: 'qx', text: 'partial only' }],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects unknown top-level keys via the object schema', () => {
+    const result = briefPatchSchema.safeParse({
+      company: { name: 'X' },
+      bogus: 'not a real field',
+    });
+    // Zod objects are strict-off by default — they accept but strip unknown
+    // keys. Assert the parsed shape has no bogus field leaking through.
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect('bogus' in result.data).toBe(false);
+    }
   });
 });

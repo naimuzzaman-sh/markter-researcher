@@ -213,6 +213,75 @@ describe('SupabaseService', () => {
     });
   });
 
+  describe('updateBriefById', () => {
+    const OWNER_ID = 'owner-uuid-123';
+    const BRIEF_ID = 'brief-uuid-1';
+
+    it('updates the row filtered by id AND owner_id, returning the refreshed brief', async () => {
+      const maybeSingle = vi.fn().mockResolvedValue({
+        data: {
+          id: BRIEF_ID,
+          research_context: sampleContext,
+          created_at: '2026-04-18T10:00:00Z',
+        },
+        error: null,
+      });
+      const select = vi.fn().mockReturnValue({ maybeSingle });
+      const ownerEq = vi.fn().mockReturnValue({ select });
+      const idEq = vi.fn().mockReturnValue({ eq: ownerEq });
+      const update = vi.fn().mockReturnValue({ eq: idEq });
+      mockFrom.mockReturnValue({ update });
+
+      const result = await service.updateBriefById(
+        BRIEF_ID,
+        OWNER_ID,
+        sampleContext,
+      );
+
+      expect(mockFrom).toHaveBeenCalledWith('briefs');
+      expect(update).toHaveBeenCalledWith({ research_context: sampleContext });
+      expect(idEq).toHaveBeenCalledWith('id', BRIEF_ID);
+      expect(ownerEq).toHaveBeenCalledWith('owner_id', OWNER_ID);
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe(BRIEF_ID);
+      expect(result?.researchContext).toEqual(sampleContext);
+    });
+
+    it('returns null when the UPDATE touches zero rows (id unknown or owner mismatch)', async () => {
+      const maybeSingle = vi
+        .fn()
+        .mockResolvedValue({ data: null, error: null });
+      mockFrom.mockReturnValue({
+        update: () => ({
+          eq: () => ({ eq: () => ({ select: () => ({ maybeSingle }) }) }),
+        }),
+      });
+
+      const result = await service.updateBriefById(
+        BRIEF_ID,
+        OWNER_ID,
+        sampleContext,
+      );
+      expect(result).toBeNull();
+    });
+
+    it('throws when the query errors', async () => {
+      const maybeSingle = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: 'update failed' },
+      });
+      mockFrom.mockReturnValue({
+        update: () => ({
+          eq: () => ({ eq: () => ({ select: () => ({ maybeSingle }) }) }),
+        }),
+      });
+
+      await expect(
+        service.updateBriefById(BRIEF_ID, OWNER_ID, sampleContext),
+      ).rejects.toThrow(/update failed/);
+    });
+  });
+
   describe('refreshSession', () => {
     let refreshSessionMock: ReturnType<typeof vi.fn>;
 
