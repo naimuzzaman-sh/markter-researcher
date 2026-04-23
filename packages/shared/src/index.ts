@@ -51,9 +51,41 @@ export {
 } from './types/setup-session.type';
 export type { ChatMessage, SetupSession } from './types/setup-session.type';
 
+export {
+  agentJobSchema,
+  agentJobKindSchema,
+  agentJobStatusSchema,
+} from './types/agent-job.type';
+export type {
+  AgentJob,
+  AgentJobKind,
+  AgentJobStatus,
+} from './types/agent-job.type';
+
+export {
+  contactSchema,
+  contactSummarySchema,
+  EMBEDDING_DIMS,
+} from './types/contact.type';
+export type { Contact, ContactSummary } from './types/contact.type';
+
+export {
+  briefCandidateSchema,
+  candidateStatusSchema,
+  candidateSourceSchema,
+} from './types/candidate.type';
+export type {
+  BriefCandidate,
+  CandidateStatus,
+  CandidateSource,
+} from './types/candidate.type';
+
 // Domain services (plain classes — consumers wrap with @Injectable as needed)
 export { SupabaseService, type AuthUser } from './supabase.service';
 export { BriefsService } from './briefs.service';
+export { AgentJobsService } from './agent-jobs.service';
+export { ContactsService } from './contacts.service';
+export { CandidatesService } from './candidates.service';
 
 // Reusable prompt guidance (used by both the web's Gemini and the MCP's tool descriptions)
 export { BRIEF_SETUP_GUIDANCE } from './brief-setup-guidance';
