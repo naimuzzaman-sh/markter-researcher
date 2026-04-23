@@ -25,6 +25,10 @@ import {
   makeCreateBriefHandler,
 } from './tools/create-brief.js';
 import {
+  updateBriefConfig,
+  makeUpdateBriefHandler,
+} from './tools/update-brief.js';
+import
   findCandidatesConfig,
   makeFindCandidatesHandler,
 } from './tools/find-candidates.js';
@@ -125,6 +129,10 @@ export function buildServer(client: ApiClient, baseUrl: string): McpServer {
     withAuth(makeCreateBriefHandler(client, baseUrl)),
   );
 
+  server.registerTool(
+    'update_brief',
+    updateBriefConfig,
+    withAuth(makeUpdateBriefHandler(server, client, baseUrl)),
   // Network-lens: discovery → review → approve → (later) outreach/interview
   server.registerTool(
     'find_candidates',

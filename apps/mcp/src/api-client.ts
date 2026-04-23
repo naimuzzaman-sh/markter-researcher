@@ -2,6 +2,7 @@ import type {
   AgentJob,
   BriefCandidate,
   Brief,
+  BriefPatch,
   Contact,
   InterviewDetail,
   InterviewSummary,
@@ -69,7 +70,7 @@ export class ApiClient {
   }
 
   private async json<T>(
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PATCH',
     path: string,
     body?: unknown,
   ): Promise<T> {
@@ -162,6 +163,32 @@ export class ApiClient {
 
   async createBrief(context: ResearchContext): Promise<{ briefId: string }> {
     return this.json<{ briefId: string }>('POST', '/briefs', { context });
+  }
+
+  /**
+   * Apply a partial patch to an existing brief. Returns null on 404 (the
+   * brief doesn't exist OR isn't owned by the caller — the API collapses
+   * both into 404 so we don't leak existence).
+   */
+  async updateBrief(
+    briefId: string,
+    patch: BriefPatch,
+  ): Promise<Brief | null> {
+    try {
+      const row = await this.json<BriefWire>(
+        'PATCH',
+        `/briefs/${encodeURIComponent(briefId)}`,
+        { patch },
+      );
+      return {
+        id: row.briefId,
+        researchContext: row.researchContext,
+        createdAt: new Date(row.createdAt),
+      };
+       } catch (err) {
+      if (err instanceof Error && /HTTP 404/.test(err.message)) return null;
+      throw err;
+    }
   }
 
   // ---------------------------------------------------------------------------

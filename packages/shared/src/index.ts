@@ -14,11 +14,13 @@ export {
   researchContextSchema,
   researchQuestionSchema,
   questionCategorySchema,
+  briefPatchSchema,
 } from './types/research-context.type';
 export type {
   ResearchContext,
   ResearchQuestion,
   QuestionCategory,
+  BriefPatch,
 } from './types/research-context.type';
 
 export { briefSchema } from './types/brief.type';

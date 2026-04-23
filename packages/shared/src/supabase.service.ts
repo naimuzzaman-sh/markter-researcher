@@ -344,6 +344,39 @@ export class SupabaseService {
   }
 
   /**
+   * Write a new researchContext onto an existing brief, scoped to its owner.
+   * The `eq('owner_id', ownerId)` filter is the authoritative ownership check:
+   * if the row exists but is owned by someone else, the UPDATE touches zero
+   * rows and we return null. Callers treat null as "not yours or doesn't
+   * exist" — we deliberately don't distinguish those cases.
+   */
+  async updateBriefById(
+    briefId: string,
+    ownerId: string,
+    researchContext: ResearchContext,
+  ): Promise<Brief | null> {
+    const { data, error } = await this.client
+      .from('briefs')
+      .update({ research_context: researchContext })
+      .eq('id', briefId)
+      .eq('owner_id', ownerId)
+      .select('id, research_context, created_at')
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to update brief: ${error.message}`);
+    }
+    if (!data) return null;
+
+    const row = data as BriefRow;
+    return {
+      id: row.id,
+      researchContext: researchContextSchema.parse(row.research_context),
+      createdAt: new Date(row.created_at),
+    };
+  }
+
+  /**
    * List briefs owned by a single user, newest-first.
    * Application-level ownership scoping: we filter `owner_id = ownerId` in the
    * query. Supabase RLS is disabled in current phases, so this is the guardrail.
