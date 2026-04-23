@@ -1,5 +1,8 @@
 import type {
+  AgentJob,
+  BriefCandidate,
   Brief,
+  Contact,
   InterviewDetail,
   InterviewSummary,
   ResearchContext,
@@ -160,4 +163,188 @@ export class ApiClient {
   async createBrief(context: ResearchContext): Promise<{ briefId: string }> {
     return this.json<{ briefId: string }>('POST', '/briefs', { context });
   }
+
+  // ---------------------------------------------------------------------------
+  // Discovery / contacts / candidates / agent-jobs (network-lens flow)
+  // ---------------------------------------------------------------------------
+
+  async runDiscovery(input: {
+    briefId: string;
+    limit?: number;
+    extraCriteria?: string;
+  }): Promise<{ jobId: string }> {
+    return this.json<{ jobId: string }>('POST', '/discovery/runs', input);
+  }
+
+  async getAgentJob(jobId: string): Promise<AgentJob | null> {
+    try {
+      const row = await this.json<AgentJobWire>(
+        'GET',
+        `/agent-jobs/${encodeURIComponent(jobId)}`,
+      );
+      return wireToAgentJob(row);
+    } catch (err) {
+      if (err instanceof Error && /HTTP 404/.test(err.message)) return null;
+      throw err;
+    }
+  }
+
+  async listContacts(limit: number): Promise<Contact[]> {
+    const rows = await this.json<ContactWire[]>(
+      'GET',
+      `/contacts?limit=${encodeURIComponent(String(limit))}`,
+    );
+    return rows.map(wireToContact);
+  }
+
+  async getContact(contactId: string): Promise<Contact | null> {
+    try {
+      const row = await this.json<ContactWire>(
+        'GET',
+        `/contacts/${encodeURIComponent(contactId)}`,
+      );
+      return wireToContact(row);
+    } catch (err) {
+      if (err instanceof Error && /HTTP 404/.test(err.message)) return null;
+      throw err;
+    }
+  }
+
+  async listCandidatesForBrief(
+    briefId: string,
+    limit: number,
+  ): Promise<BriefCandidate[]> {
+    const rows = await this.json<CandidateWire[]>(
+      'GET',
+      `/briefs/${encodeURIComponent(briefId)}/candidates?limit=${encodeURIComponent(String(limit))}`,
+    );
+    return rows.map(wireToCandidate);
+  }
+
+  async getCandidate(candidateId: string): Promise<BriefCandidate | null> {
+    try {
+      const row = await this.json<CandidateWire>(
+        'GET',
+        `/candidates/${encodeURIComponent(candidateId)}`,
+      );
+      return wireToCandidate(row);
+    } catch (err) {
+      if (err instanceof Error && /HTTP 404/.test(err.message)) return null;
+      throw err;
+    }
+  }
+
+  async approveCandidate(candidateId: string): Promise<BriefCandidate> {
+    const row = await this.json<CandidateWire>(
+      'POST',
+      `/candidates/${encodeURIComponent(candidateId)}/approve`,
+    );
+    return wireToCandidate(row);
+  }
+
+  async rejectCandidate(candidateId: string): Promise<BriefCandidate> {
+    const row = await this.json<CandidateWire>(
+      'POST',
+      `/candidates/${encodeURIComponent(candidateId)}/reject`,
+    );
+    return wireToCandidate(row);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wire shapes + converters for the network-lens endpoints
+// ---------------------------------------------------------------------------
+
+type AgentJobWire = {
+  jobId: string;
+  kind: AgentJob['kind'];
+  status: AgentJob['status'];
+  input: unknown;
+  output: unknown | null;
+  error: string | null;
+  costUsd: number | null;
+  tokensUsed: number | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+};
+
+function wireToAgentJob(w: AgentJobWire): AgentJob {
+  return {
+    id: w.jobId,
+    // ownerId is not on the wire (server already scopes by authenticated user)
+    // Fill it with the known-good value the server wouldn't return a job for
+    // if it weren't ours.
+    ownerId: '',
+    kind: w.kind,
+    status: w.status,
+    inputJson: w.input,
+    outputJson: w.output,
+    error: w.error,
+    costUsd: w.costUsd,
+    tokensUsed: w.tokensUsed,
+    startedAt: w.startedAt ? new Date(w.startedAt) : null,
+    finishedAt: w.finishedAt ? new Date(w.finishedAt) : null,
+    createdAt: new Date(w.createdAt),
+  };
+}
+
+type ContactWire = {
+  contactId: string;
+  name: string;
+  linkedinUrl: string | null;
+  title: string | null;
+  companyName: string | null;
+  companyDomain: string | null;
+  email: string | null;
+  location: string | null;
+  profileJson: unknown | null;
+  researchNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function wireToContact(w: ContactWire): Contact {
+  return {
+    id: w.contactId,
+    ownerId: '',
+    name: w.name,
+    linkedinUrl: w.linkedinUrl,
+    title: w.title,
+    companyName: w.companyName,
+    companyDomain: w.companyDomain,
+    email: w.email,
+    location: w.location,
+    profileJson: w.profileJson,
+    researchNotes: w.researchNotes,
+    embedding: null,
+    createdAt: new Date(w.createdAt),
+    updatedAt: new Date(w.updatedAt),
+  };
+}
+
+type CandidateWire = {
+  candidateId: string;
+  briefId: string;
+  contactId: string;
+  status: BriefCandidate['status'];
+  source: BriefCandidate['source'];
+  matchScore: number | null;
+  interviewId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function wireToCandidate(w: CandidateWire): BriefCandidate {
+  return {
+    id: w.candidateId,
+    briefId: w.briefId,
+    contactId: w.contactId,
+    status: w.status,
+    source: w.source,
+    matchScore: w.matchScore,
+    interviewId: w.interviewId,
+    createdAt: new Date(w.createdAt),
+    updatedAt: new Date(w.updatedAt),
+  };
 }

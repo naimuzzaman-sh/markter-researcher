@@ -9,11 +9,7 @@
     "noEmit": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "allowImportingTsExtensions": false,
-    "baseUrl": ".",
-    "paths": {
-      "@market-researcher/shared": ["../../packages/shared/src/index.ts"]
-    }
+    "allowImportingTsExtensions": false
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

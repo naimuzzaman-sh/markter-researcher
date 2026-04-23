@@ -24,6 +24,38 @@ import {
   createBriefConfig,
   makeCreateBriefHandler,
 } from './tools/create-brief.js';
+import {
+  findCandidatesConfig,
+  makeFindCandidatesHandler,
+} from './tools/find-candidates.js';
+import {
+  getJobStatusConfig,
+  makeGetJobStatusHandler,
+} from './tools/get-job-status.js';
+import {
+  listCandidatesForBriefConfig,
+  makeListCandidatesForBriefHandler,
+} from './tools/list-candidates-for-brief.js';
+import {
+  getCandidateConfig,
+  makeGetCandidateHandler,
+} from './tools/get-candidate.js';
+import {
+  approveCandidateConfig,
+  makeApproveCandidateHandler,
+} from './tools/approve-candidate.js';
+import {
+  rejectCandidateConfig,
+  makeRejectCandidateHandler,
+} from './tools/reject-candidate.js';
+import {
+  listContactsConfig,
+  makeListContactsHandler,
+} from './tools/list-contacts.js';
+import {
+  getContactConfig,
+  makeGetContactHandler,
+} from './tools/get-contact.js';
 import { withAuth } from './tools/with-auth.js';
 
 /**
@@ -35,11 +67,21 @@ export function buildServer(client: ApiClient, baseUrl: string): McpServer {
   const server = new McpServer(
     {
       name: 'market-researcher',
-      version: '0.1.0',
+      version: '0.2.0',
     },
     {
-      instructions:
+      instructions: [
         'Use `list_briefs` to discover existing research briefs, `get_brief` to inspect one, `list_interviews` / `get_interview` to review completed interviews, and `preview_brief` + `create_brief` (in that order, always with explicit user confirmation) to author a new brief.',
+        '',
+        'Network-lens discovery flow:',
+        '1. `find_candidates({ briefId })` — kicks off an async EXA+LinkedIn search for people matching the brief\'s target audience. Returns a jobId.',
+        '2. `get_job_status({ jobId })` — poll until status is `succeeded`.',
+        '3. `list_candidates_for_brief({ briefId })` — see the discovered people. Each has `status: pending_review`.',
+        '4. `get_contact({ contactId })` — inspect one person\'s full profile.',
+        '5. `approve_candidate({ candidateId })` or `reject_candidate({ candidateId })` — advance the funnel.',
+        '',
+        '`list_contacts` returns the org-wide contact roster across all briefs.',
+      ].join('\n'),
     },
   );
 
@@ -81,6 +123,55 @@ export function buildServer(client: ApiClient, baseUrl: string): McpServer {
     'create_brief',
     createBriefConfig,
     withAuth(makeCreateBriefHandler(client, baseUrl)),
+  );
+
+  // Network-lens: discovery → review → approve → (later) outreach/interview
+  server.registerTool(
+    'find_candidates',
+    findCandidatesConfig,
+    withAuth(makeFindCandidatesHandler(client)),
+  );
+
+  server.registerTool(
+    'get_job_status',
+    getJobStatusConfig,
+    withAuth(makeGetJobStatusHandler(client)),
+  );
+
+  server.registerTool(
+    'list_candidates_for_brief',
+    listCandidatesForBriefConfig,
+    withAuth(makeListCandidatesForBriefHandler(client)),
+  );
+
+  server.registerTool(
+    'get_candidate',
+    getCandidateConfig,
+    withAuth(makeGetCandidateHandler(client)),
+  );
+
+  server.registerTool(
+    'approve_candidate',
+    approveCandidateConfig,
+    withAuth(makeApproveCandidateHandler(client)),
+  );
+
+  server.registerTool(
+    'reject_candidate',
+    rejectCandidateConfig,
+    withAuth(makeRejectCandidateHandler(client)),
+  );
+
+  server.registerTool(
+    'list_contacts',
+    listContactsConfig,
+    withAuth(makeListContactsHandler(client)),
+  );
+
+  server.registerTool(
+    'get_contact',
+    getContactConfig,
+    withAuth(makeGetContactHandler(client)),
   );
 
   return server;
