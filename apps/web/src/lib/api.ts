@@ -1,10 +1,15 @@
 import type { ResearchContext } from '@/types/research-context.type';
 import { supabase } from '@/lib/supabase';
 
-const CALLS_BASE = '/calls';
-const SETUP_BASE = '/setup';
-const BRIEFS_BASE = '/briefs';
-const AUTH_DEVICE_BASE = '/auth/device';
+// Base URL of the backend API. Empty string = same-origin (legacy).
+// Set VITE_API_BASE_URL=http://localhost:3001 during apps/server rollout.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
+
+const CALLS_BASE = `${API_BASE}/calls`;
+const SETUP_BASE = `${API_BASE}/setup`;
+const BRIEFS_BASE = `${API_BASE}/briefs`;
+const AUTH_DEVICE_BASE = `${API_BASE}/auth/device`;
+const CHAT_URL = `${API_BASE}/chat`;
 
 /**
  * Returns an Authorization header object if a Supabase session exists,
@@ -221,6 +226,37 @@ async function denyDevice(userCode: string): Promise<void> {
     throw new Error(await readError(response, 'Failed to deny device'));
 }
 
+// --- Universal agent chat (apps/server /chat) -------------------------------
+
+type ChatMessage = { role: 'user' | 'assistant'; content: string };
+
+type ChatToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+  result: unknown | null;
+  error: string | null;
+  durationMs: number;
+};
+
+type ChatResponse = {
+  reply: string;
+  toolCalls: ChatToolCall[];
+  usage: { promptTokens: number; outputTokens: number };
+};
+
+async function postChat(
+  messages: ChatMessage[],
+  mode?: 'universal' | 'brief-setup',
+): Promise<ChatResponse> {
+  const response = await fetch(CHAT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+    body: JSON.stringify({ messages, mode }),
+  });
+  if (!response.ok) throw new Error(await readError(response, 'Chat failed'));
+  return response.json() as Promise<ChatResponse>;
+}
+
 export {
   startCall,
   endCall,
@@ -231,6 +267,7 @@ export {
   getBrief,
   authorizeDevice,
   denyDevice,
+  postChat,
 };
 export type {
   StartCallResponse,
@@ -240,4 +277,7 @@ export type {
   SetupChatResponse,
   CreateBriefResponse,
   GetBriefResponse,
+  ChatMessage,
+  ChatToolCall,
+  ChatResponse,
 };

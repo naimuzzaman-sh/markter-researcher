@@ -6,6 +6,7 @@ import SetupRoute from './routes/SetupRoute';
 import BriefCreatedRoute from './routes/BriefCreatedRoute';
 import InterviewRoute from './routes/InterviewRoute';
 import AuthorizeRoute from './routes/AuthorizeRoute';
+import AssistantRoute from './routes/AssistantRoute';
 import { EditorialLayout, Kicker } from './components/editorial';
 import { Button } from './components/ui/button';
 import { AuthProvider } from './auth/AuthProvider';
@@ -49,6 +50,7 @@ function App() {
           {/* Protected (researcher only) */}
           <Route element={<RequireAuth />}>
             <Route path="/setup" element={<SetupRoute />} />
+            <Route path="/assistant" element={<AssistantRoute />} />
             <Route path="/briefs/:briefId" element={<BriefCreatedRoute />} />
             <Route path="/authorize/:userCode" element={<AuthorizeRoute />} />
           </Route>
