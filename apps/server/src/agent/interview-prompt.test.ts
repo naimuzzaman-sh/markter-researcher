@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ResearchContext } from '@market-researcher/shared';
+import type { ResearchContext } from '@mirrars/shared';
 import { buildInterviewPrompt, buildFirstMessage } from './interview-prompt';
 
 const ctx: ResearchContext = {

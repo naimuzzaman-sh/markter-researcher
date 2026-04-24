@@ -3,7 +3,7 @@ import type {
   BriefCandidate,
   CandidateStatus,
   CandidateSource,
-} from '@market-researcher/shared';
+} from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
 type CandidateRow = {

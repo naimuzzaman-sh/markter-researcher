@@ -1,4 +1,4 @@
-import type { TranscriptEntry } from '@market-researcher/shared';
+import type { TranscriptEntry } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
 /**

@@ -60,7 +60,7 @@ export function createMcpRoute(deps: {
     });
 
     const server = new McpServer(
-      { name: 'market-researcher', version: '0.1.0' },
+      { name: 'mirrars', version: '0.1.0' },
       {
         instructions:
           "Market researcher tools. On first use you'll get a URL to authorize in your browser — open it, click Approve, then retry the tool.",
@@ -151,7 +151,7 @@ export function createMcpRoute(deps: {
                   type: 'resource_link' as const,
                   uri: auth.verificationUri,
                   name: `Authorize (${auth.userCode})`,
-                  description: `Opens the Market Researcher authorize page. Verification code: ${auth.userCode}`,
+                  description: `Opens the Mirrars authorize page. Verification code: ${auth.userCode}`,
                 },
               ],
             };

@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "market-researcher": {
+    "mirrars": {
       "type": "http",
       "url": "http://localhost:3001/mcp"
     }

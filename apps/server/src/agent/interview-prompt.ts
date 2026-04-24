@@ -1,4 +1,4 @@
-import type { ResearchContext, ResearchQuestion } from '@market-researcher/shared';
+import type { ResearchContext, ResearchQuestion } from '@mirrars/shared';
 
 /**
  * Build the system prompt for the ElevenLabs Convai interview agent.

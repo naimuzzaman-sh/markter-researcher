@@ -3,12 +3,12 @@ import { briefPatchSchema, researchContextSchema } from './research-context.type
 
 const validContext = {
   company: {
-    name: 'Market Researcher AI',
+    name: 'Mirrars',
     industry: 'AI / Market Research',
     description: 'An AI-powered agent that conducts market research interviews via voice calls',
   },
   product: {
-    name: 'Market Researcher Agent',
+    name: 'Mirrars Agent',
     description: 'AI agent that calls users to conduct structured market research interviews',
     keyFeatures: ['Voice interviews', 'Adaptive questioning', 'Post-call analysis'],
     targetAudience: 'Product managers, founders, and market researchers',

@@ -3,8 +3,8 @@ import type {
   CallAnalysis,
   ResearchQuestion,
   TranscriptEntry,
-} from '@market-researcher/shared';
-import { callAnalysisSchema } from '@market-researcher/shared';
+} from '@mirrars/shared';
+import { callAnalysisSchema } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
 /**

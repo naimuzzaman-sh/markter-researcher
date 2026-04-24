@@ -3,7 +3,7 @@ import type {
   SavedInterview,
   InterviewSummary,
   InterviewDetail,
-} from '@market-researcher/shared';
+} from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
 type InterviewListRow = {

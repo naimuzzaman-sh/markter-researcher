@@ -1,4 +1,4 @@
-// Public barrel for @market-researcher/shared.
+// Public barrel for @mirrars/shared.
 //
 // Types + Zod schemas only. Consumers: apps/server (runtime), apps/web (types
 // only via its own local types folder — this barrel is not imported there).

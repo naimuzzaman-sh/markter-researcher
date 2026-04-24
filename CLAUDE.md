@@ -1,4 +1,4 @@
-# market-researcher-agent Coding Standards & Best Practices
+# mirrars Coding Standards & Best Practices
 
 **Version:** 1.0.0
 **Last Updated:** 2026-04-12

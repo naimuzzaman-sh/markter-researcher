@@ -3,7 +3,7 @@ import {
   researchContextSchema,
   type BriefPatch,
   type ResearchContext,
-} from '@market-researcher/shared';
+} from '@mirrars/shared';
 import { z } from 'zod';
 import { getBriefById, updateBriefById } from '../db/briefs';
 import { AppError } from '../lib/errors';

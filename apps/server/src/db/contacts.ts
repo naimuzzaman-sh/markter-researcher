@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Contact } from '@market-researcher/shared';
+import type { Contact } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 import { formatVectorForInsert, parseVectorFromRow } from './pgvector';
 

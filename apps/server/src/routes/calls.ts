@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { ResearchContext, TranscriptEntry } from '@market-researcher/shared';
+import type { ResearchContext, TranscriptEntry } from '@mirrars/shared';
 import type { Config } from '../config';
 import type { Logger } from '../lib/logger';
 import { AppError } from '../lib/errors';

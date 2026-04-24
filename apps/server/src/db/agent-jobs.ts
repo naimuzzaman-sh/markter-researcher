@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AgentJob, AgentJobKind, AgentJobStatus } from '@market-researcher/shared';
+import type { AgentJob, AgentJobKind, AgentJobStatus } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
 type Row = {

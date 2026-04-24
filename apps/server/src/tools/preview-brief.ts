@@ -1,4 +1,4 @@
-import { researchContextSchema } from '@market-researcher/shared';
+import { researchContextSchema } from '@mirrars/shared';
 import { z } from 'zod';
 import type { Tool } from './types';
 

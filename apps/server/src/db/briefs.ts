@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { researchContextSchema, type ResearchContext, type Brief } from '@market-researcher/shared';
+import { researchContextSchema, type ResearchContext, type Brief } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
 type BriefRow = {
