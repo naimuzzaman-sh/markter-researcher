@@ -45,7 +45,7 @@ type GeminiContent = {
 function isRetryableGeminiError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   // SDK throws ApiError; message is a JSON blob that contains a `code` field.
-  return /\"code\"\s*:\s*(429|500|502|503|504)/.test(msg) || /UNAVAILABLE|RESOURCE_EXHAUSTED/.test(msg);
+  return /"code"\s*:\s*(429|500|502|503|504)/.test(msg) || /UNAVAILABLE|RESOURCE_EXHAUSTED/.test(msg);
 }
 
 async function withRetry<T>(

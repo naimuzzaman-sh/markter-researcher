@@ -5,57 +5,66 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Config } from '../config';
 import type { Logger } from '../lib/logger';
-import type { AuthVariables } from '../middleware/auth';
-import { AppError } from '../lib/errors';
+import type { DeviceFlow } from '../lib/device-flow';
+import { SessionAuthStore } from '../lib/session-auth';
 import { tools as toolRegistry } from '../tools/index';
 import type { Tool } from '../tools/types';
 
 /**
- * MCP server over Streamable HTTP. Same tool registry as `/chat` — every tool
- * is registered verbatim, with one dispatcher that parses the input schema
- * and calls `tool.execute(args, ctx)`. Zero per-tool handler duplication.
+ * MCP server over Streamable HTTP.
  *
- * Auth: reuses `createAuthMiddleware` upstream, so `c.get('userId')` is
- * guaranteed populated by the time we enter this handler.
+ * Auth (mirrors the old `apps/mcp` DeviceAuth UX):
+ *   - First tool call with no session auth → tool returns TEXT telling the
+ *     user "Open this URL to authorize". Device-flow state is stashed on
+ *     the Mcp-Session-Id so the next call can resume.
+ *   - User opens URL → web `/authorize/:userCode` page approves → server
+ *     stores tokens on the pending device.
+ *   - Retry the tool → session auth polls, finds authorized, runs the tool.
+ *   - Tokens refresh transparently via Supabase when near expiry; no user
+ *     action needed until the refresh token itself is revoked.
  *
- * Sessions: stateful — SDK generates a session id per MCP client connection.
- * Each session has its own transport + McpServer so closures capture the
- * authenticated user id at connect time.
+ * No Authorization header on client .mcp.json — server-side session cache
+ * handles everything. Claude Code / Cursor just need:
+ *   { "type": "http", "url": "https://<deployed>/mcp" }
  */
 export function createMcpRoute(deps: {
   supabase: SupabaseClient;
   config: Config;
   logger: Logger;
+  device: DeviceFlow;
 }) {
-  const app = new Hono<{ Variables: AuthVariables }>();
+  const app = new Hono();
 
-  // sessionId → { transport, server }. Kept in-memory; good enough for a
-  // single-process deploy. If we ever scale horizontally, move to Redis-backed
-  // session store (the SDK exposes EventStore for resumability).
+  const sessionAuth = new SessionAuthStore(deps.device, deps.supabase);
+  const webBase = deps.config.webOrigins[0] ?? 'http://localhost:5173';
+
+  // sessionId → { transport, server }. In-memory; single-instance only.
   const sessions = new Map<
     string,
     { transport: WebStandardStreamableHTTPServerTransport; server: McpServer }
   >();
 
-  async function buildServerForUser(userId: string): Promise<{
+  async function buildServer(): Promise<{
     transport: WebStandardStreamableHTTPServerTransport;
     server: McpServer;
   }> {
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sid) => {
-        deps.logger.info('mcp session initialized', { sessionId: sid, userId });
+        deps.logger.info('mcp session initialized', { sessionId: sid });
       },
       onsessionclosed: async (sid) => {
         sessions.delete(sid);
-        deps.logger.info('mcp session closed', { sessionId: sid, userId });
+        sessionAuth.forget(sid);
+        deps.logger.info('mcp session closed', { sessionId: sid });
       },
     });
 
     const server = new McpServer(
       { name: 'market-researcher', version: '0.1.0' },
       {
-        instructions: `This MCP server exposes the market-researcher tool surface. All tools run under the authenticated user (userId=${userId}); Supabase queries are automatically owner-scoped. Use \`list_briefs\` to start.`,
+        instructions:
+          'Market researcher tools. On first use you\'ll get a URL to authorize in your browser — open it, click Approve, then retry the tool.',
       },
     );
 
@@ -65,7 +74,6 @@ export function createMcpRoute(deps: {
         {
           title: tool.name,
           description: tool.description,
-          // McpServer accepts ZodRawShape — unwrap if the schema is a ZodObject.
           inputSchema:
             'shape' in tool.inputSchema &&
             typeof (tool.inputSchema as { shape?: unknown }).shape === 'object'
@@ -73,10 +81,45 @@ export function createMcpRoute(deps: {
               : undefined,
         },
         async (args: unknown) => {
+          const sid = transport.sessionId;
+          if (!sid) {
+            return {
+              content: [
+                { type: 'text' as const, text: 'MCP session not initialized yet.' },
+              ],
+              isError: true,
+            };
+          }
+
+          const auth = await sessionAuth.resolve(sid, webBase);
+
+          if (auth.kind === 'pending') {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: `Authorization required. Open this URL in your browser (signed in to the web app) and click Approve, then retry this tool:\n\n    ${auth.verificationUri}\n\n(Verification code: ${auth.userCode})`,
+                },
+              ],
+            };
+          }
+          if (auth.kind === 'denied') {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: 'Authorization was denied in the browser. Retry this tool to start a new authorization flow.',
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          // authorized — run the tool
           try {
             const parsed = tool.inputSchema.parse(args);
             const result = await tool.execute(parsed, {
-              userId,
+              userId: auth.userId,
               supabase: deps.supabase,
               config: deps.config,
             });
@@ -103,30 +146,16 @@ export function createMcpRoute(deps: {
     return { transport, server };
   }
 
-  // Single `/mcp` endpoint — the SDK's streamable-http transport handles GET
-  // (SSE stream) / POST (JSON-RPC request) / DELETE (session close) on the
-  // same path, switching based on HTTP method.
   app.all('/mcp', async (c) => {
-    const userId = c.get('userId');
-    if (!userId) throw new AppError('unauthorized', 'userId missing from context');
-
     const sessionId = c.req.header('mcp-session-id');
-
     let entry = sessionId ? sessions.get(sessionId) : undefined;
     if (!entry) {
-      // First contact from a new client — build a transport + server for them.
-      entry = await buildServerForUser(userId);
-      // After handleRequest runs the initialize handshake, the transport
-      // will have a sessionId; store it then.
+      entry = await buildServer();
     }
-
     const response = await entry.transport.handleRequest(c.req.raw);
-
-    // On init handshake, sessionId is now populated — remember for later.
     if (!sessionId && entry.transport.sessionId) {
       sessions.set(entry.transport.sessionId, entry);
     }
-
     return response;
   });
 

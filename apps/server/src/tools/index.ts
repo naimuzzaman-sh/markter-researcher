@@ -2,6 +2,7 @@ import type { ToolRegistry } from './types';
 import { listBriefsTool } from './list-briefs';
 import { getBriefTool } from './get-brief';
 import { createBriefTool } from './create-brief';
+import { updateBriefTool } from './update-brief';
 import { previewBriefTool } from './preview-brief';
 import { listInterviewsTool } from './list-interviews';
 import { getInterviewTool } from './get-interview';
@@ -24,6 +25,7 @@ export const tools: ToolRegistry = {
   [listBriefsTool.name]: listBriefsTool,
   [getBriefTool.name]: getBriefTool,
   [createBriefTool.name]: createBriefTool,
+  [updateBriefTool.name]: updateBriefTool,
   [previewBriefTool.name]: previewBriefTool,
   [listInterviewsTool.name]: listInterviewsTool,
   [getInterviewTool.name]: getInterviewTool,

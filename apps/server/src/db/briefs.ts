@@ -64,3 +64,27 @@ export async function insertBrief(
   }
   return (data as { id: string }).id;
 }
+
+/**
+ * Replace `research_context` for a brief the owner owns. Returns the merged
+ * brief, or null when the row doesn't exist OR belongs to a different owner
+ * (we collapse both to null so we don't leak existence).
+ */
+export async function updateBriefById(
+  client: SupabaseClient,
+  briefId: string,
+  ownerId: string,
+  newContext: ResearchContext,
+): Promise<Brief | null> {
+  const { data, error } = await client
+    .from('briefs')
+    .update({ research_context: newContext })
+    .eq('id', briefId)
+    .eq('owner_id', ownerId)
+    .select('id, research_context, created_at')
+    .maybeSingle();
+
+  if (error) throw new AppError('upstream', `Failed to update brief: ${error.message}`);
+  if (!data) return null;
+  return rowToBrief(data as BriefRow);
+}
