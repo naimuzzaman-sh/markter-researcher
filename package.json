@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter './apps/*' dev",
-    "build": "pnpm --filter shared build && pnpm --filter web build && pnpm --filter server build",
+    "build": "pnpm --filter @mirrars/shared build && pnpm --filter web build && pnpm --filter server build",
+    "build:server": "pnpm --filter @mirrars/shared build && pnpm --filter server build",
+    "build:web": "pnpm --filter @mirrars/shared build && pnpm --filter web build",
     "start": "pnpm --filter server start",
     "test": "pnpm --recursive --workspace-concurrency=1 test",
     "typecheck": "pnpm --recursive typecheck",
