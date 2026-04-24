@@ -3,7 +3,11 @@ import { z } from 'zod';
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  WEB_ORIGIN: z.string().min(1, 'WEB_ORIGIN required'),
+  // Single origin. Used for BOTH the CORS allow-list and generated auth
+  // links (MCP verification URL). `.trim()` before length check so a
+  // whitespace-only value fails validation instead of silently becoming
+  // an empty origin list.
+  WEB_ORIGIN: z.string().trim().min(1, 'WEB_ORIGIN required'),
   SUPABASE_URL: z.string().url('SUPABASE_URL must be a URL'),
   SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY required'),
   GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY required'),
@@ -18,6 +22,8 @@ export type Config = {
   port: number;
   nodeEnv: 'development' | 'test' | 'production';
   webOrigins: string[];
+  /** Trailing-slash-stripped single origin for generated auth links. */
+  webOrigin: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
   geminiApiKey: string;
@@ -42,10 +48,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`Invalid env: ${issues}`);
   }
   const v = parsed.data;
+  const webOrigin = v.WEB_ORIGIN.replace(/\/+$/, '');
   return {
     port: v.PORT,
     nodeEnv: v.NODE_ENV,
-    webOrigins: v.WEB_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean),
+    webOrigins: [webOrigin],
+    webOrigin,
     supabaseUrl: v.SUPABASE_URL,
     supabaseAnonKey: v.SUPABASE_ANON_KEY,
     geminiApiKey: v.GEMINI_API_KEY,

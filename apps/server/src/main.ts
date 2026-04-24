@@ -8,7 +8,7 @@ import { createApp } from './app';
 /**
  * Entry point: load + validate config, build app, listen.
  * Graceful shutdown on SIGINT/SIGTERM so we don't drop in-flight requests
- * during a Railway redeploy or a Ctrl-C in dev.
+ * during a redeploy or a Ctrl-C in dev.
  */
 function main(): void {
   const config = loadConfig();

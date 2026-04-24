@@ -30,12 +30,27 @@ describe('loadConfig', () => {
     expect(cfg.port).toBe(3001);
   });
 
-  it('parses WEB_ORIGIN as comma-separated list', () => {
+  it('exposes WEB_ORIGIN as both webOrigin and webOrigins[0]', () => {
     const cfg = loadConfig({
       ...validEnv,
-      WEB_ORIGIN: 'http://a.com, http://b.com',
+      WEB_ORIGIN: 'https://prod.example.com',
     });
-    expect(cfg.webOrigins).toEqual(['http://a.com', 'http://b.com']);
+    expect(cfg.webOrigin).toBe('https://prod.example.com');
+    expect(cfg.webOrigins).toEqual(['https://prod.example.com']);
+  });
+
+  it('strips trailing slash from WEB_ORIGIN', () => {
+    const cfg = loadConfig({
+      ...validEnv,
+      WEB_ORIGIN: 'https://prod.example.com/',
+    });
+    expect(cfg.webOrigin).toBe('https://prod.example.com');
+  });
+
+  it('rejects whitespace-only WEB_ORIGIN', () => {
+    expect(() =>
+      loadConfig({ ...validEnv, WEB_ORIGIN: '   ' }),
+    ).toThrow(/WEB_ORIGIN/);
   });
 
   it('throws when SUPABASE_URL missing', () => {
@@ -53,4 +68,5 @@ describe('loadConfig', () => {
     void _G;
     expect(() => loadConfig(rest)).toThrow(/GEMINI_API_KEY/);
   });
+
 });

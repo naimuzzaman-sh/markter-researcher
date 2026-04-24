@@ -39,7 +39,7 @@ export function createMcpRoute(deps: {
   logger: Logger;
 }) {
   const app = new Hono();
-  const webBase = deps.config.webOrigins[0] ?? 'http://localhost:5173';
+  const webBase = deps.config.webOrigin;
 
   const sessions = new Map<
     string,
