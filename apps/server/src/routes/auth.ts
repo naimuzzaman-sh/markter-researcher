@@ -6,7 +6,7 @@ import type { Logger } from '../lib/logger';
 import type { AuthVariables } from '../middleware/auth';
 import { createAuthMiddleware } from '../middleware/auth';
 import { AppError } from '../lib/errors';
-import type { DeviceFlow } from '../lib/device-flow';
+import { approveByUserCode, denyByUserCode } from '../lib/auth-flow';
 
 const refreshBody = z.object({ refreshToken: z.string().min(1) });
 const authorizeBody = z.object({
@@ -17,25 +17,19 @@ const authorizeBody = z.object({
 const denyBody = z.object({ userCode: z.string().min(1) });
 
 /**
- * Auth HTTP surface — shares the `DeviceFlow` singleton with `/mcp` so an
- * MCP session starts a flow (in /mcp) and the web approves it (here).
+ * Web-side of the device flow: the signed-in user approves/denies a
+ * pending MCP session. Pairs with the /mcp route's `resolveAuth` /
+ * `waitForAuth` calls — both sides talk to the same `auth-flow` module.
  *
- * - POST   /auth/refresh            public; Supabase refresh-token exchange
- * - POST   /auth/device/authorize   AUTHED; web hands signed-in session → device
- * - POST   /auth/device/deny        AUTHED; web rejects
- *
- * Note: `/auth/device/start` and `/auth/device/poll` USED to live here for
- * the old `apps/mcp` stdio bridge. In the new topology the MCP server at
- * /mcp handles start/poll internally against the session id, so those
- * endpoints are no longer needed.
+ * - POST /auth/refresh            public; Supabase refresh-token exchange
+ * - POST /auth/device/authorize   AUTHED; approves pending session
+ * - POST /auth/device/deny        AUTHED; rejects it
  */
 export function createAuthRoute(deps: {
-  device: DeviceFlow;
   supabase: SupabaseClient;
   config: Config;
   logger: Logger;
 }) {
-  // Public routes
   const publicApp = new Hono();
 
   publicApp.post('/auth/refresh', async (c) => {
@@ -62,10 +56,8 @@ export function createAuthRoute(deps: {
     }
   });
 
-  // Authed routes — web-only, signed-in user authorizes/denies.
-  // Scope the auth middleware to these specific paths (not '*') so that
-  // mounting this sub-app at '/' doesn't accidentally gate unrelated
-  // routes on the outer app.
+  // Authed — scoped to specific paths (not `*`) so mounting at '/' doesn't
+  // leak the middleware onto unrelated outer-app routes.
   const authedApp = new Hono<{ Variables: AuthVariables }>();
   const auth = createAuthMiddleware(deps.supabase);
   authedApp.use('/auth/device/authorize', auth);
@@ -79,12 +71,11 @@ export function createAuthRoute(deps: {
     const accessToken = authHeader.replace(/^Bearer\s+/i, '').trim();
     if (!accessToken) throw new AppError('validation', 'Missing bearer token');
 
-    deps.device.authorize({
-      userCode: parsed.data.userCode,
+    approveByUserCode(parsed.data.userCode, {
       userId: c.get('userId'),
       accessToken,
       refreshToken: parsed.data.refreshToken,
-      tokenExpiresAt: parsed.data.tokenExpiresAt,
+      expiresAt: parsed.data.tokenExpiresAt,
     });
     return c.json({ ok: true });
   });
@@ -92,7 +83,7 @@ export function createAuthRoute(deps: {
   authedApp.post('/auth/device/deny', async (c) => {
     const parsed = denyBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) throw new AppError('validation', 'Invalid deny body');
-    deps.device.deny(parsed.data.userCode);
+    denyByUserCode(parsed.data.userCode);
     return c.json({ ok: true });
   });
 

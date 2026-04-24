@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from './config';
 import type { Logger } from './lib/logger';
-import { DeviceFlow } from './lib/device-flow';
 import { createCors } from './middleware/cors';
 import { errorHandler } from './middleware/error-handler';
 import { createAuthMiddleware, type AuthVariables } from './middleware/auth';
@@ -24,42 +23,34 @@ export type AppDeps = {
  * Compose the Hono app.
  *
  * - `/health`, `/briefs/:id`, `/calls/*`, `/webhooks/*` — public
- * - `/auth/*` — module scopes its own auth
+ * - `/auth/refresh` — public
+ * - `/auth/device/authorize`, `/auth/device/deny` — Supabase JWT required
  * - `/mcp` — auth handled per-session inside the route (device-flow UX)
- * - `/chat` — requires Supabase JWT from the signed-in web user
+ * - `/chat` — Supabase JWT required
  *
- * We deliberately apply auth middleware INSIDE the chat sub-app (via
- * `subapp.use(...)`) instead of mounting a `.use('*')` subapp at root.
- * Hono's `app.route('/', authedSub)` would make the sub-app's wildcard
- * middleware run for every path on the outer app, gating /mcp + public
- * routes by accident.
+ * Middleware is applied per-path (never via `sub.use('*')` on a root-mounted
+ * subapp — that would leak auth onto unrelated routes).
  */
 export function createApp(deps: AppDeps) {
   const app = new Hono<{ Variables: AuthVariables }>();
-  const device = new DeviceFlow();
 
   app.use('*', createCors(deps.config.webOrigins));
   app.onError(errorHandler);
 
-  // Public
+  // Public + auth-scopes-itself modules
   app.route('/', healthRoute);
   app.route('/', createBriefsPublicRoute(deps));
   app.route('/', createCallsRoute(deps));
   app.route('/', createWebhooksRoute(deps));
-  app.route('/', createAuthRoute({ ...deps, device }));
-  app.route('/', createMcpRoute({ ...deps, device }));
+  app.route('/', createAuthRoute(deps));
+  app.route('/', createMcpRoute(deps));
 
-  // Authed — middleware applied directly to the route, not via a sub-app.
+  // /chat — scope auth to this exact path.
   const auth = createAuthMiddleware(deps.supabase);
-  const chatApp = createChatRoute(deps);
-  // Re-wrap: prepend auth middleware to every handler on chatApp before mount.
-  // Hono doesn't have a `.mountWithMiddleware` helper, so we express it as a
-  // tiny inline sub-app that uses auth only for its own routes.
-  const chatAuthed = new Hono<{ Variables: AuthVariables }>();
-  chatAuthed.use('/chat', auth);
-  chatAuthed.use('/chat/*', auth);
-  chatAuthed.route('/', chatApp);
-  app.route('/', chatAuthed);
+  const chatSub = new Hono<{ Variables: AuthVariables }>();
+  chatSub.use('/chat', auth);
+  chatSub.route('/', createChatRoute(deps));
+  app.route('/', chatSub);
 
   return app;
 }
