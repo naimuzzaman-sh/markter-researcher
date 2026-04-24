@@ -6,18 +6,16 @@ import { supabase } from '@/lib/supabase';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
 const CALLS_BASE = `${API_BASE}/calls`;
-const SETUP_BASE = `${API_BASE}/setup`;
 const BRIEFS_BASE = `${API_BASE}/briefs`;
 const AUTH_DEVICE_BASE = `${API_BASE}/auth/device`;
 const CHAT_URL = `${API_BASE}/chat`;
 
 /**
  * Returns an Authorization header object if a Supabase session exists,
- * otherwise an empty object. Used by researcher-only endpoints.
- *
- * Routes that attach this: startSetup, sendSetupMessage, createBrief.
- * Routes that deliberately DON'T: getBrief, startCall, endCall, getCall
- *   — interviewees are anonymous and must be able to call them without auth.
+ * otherwise an empty object. Used by researcher-only endpoints
+ * (`postChat`, `authorizeDevice`, `denyDevice`). Interviewee routes
+ * (`getBrief`, `startCall`, `endCall`) deliberately DON'T attach auth —
+ * those users are anonymous.
  */
 async function authHeader(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession();
@@ -34,10 +32,7 @@ type StartCallResponse = {
 };
 
 type CallAnalysis = {
-  participant: {
-    inferredRole: string;
-    background: string;
-  };
+  participant: { inferredRole: string; background: string };
   answers: Array<{
     questionId: string;
     questionText: string;
@@ -57,29 +52,10 @@ type CallRecord = {
   conversationId: string | null;
   status: 'created' | 'in-progress' | 'processing' | 'completed' | 'failed';
   context: ResearchContext;
-  transcript: Array<{
-    role: 'user' | 'agent';
-    message: string;
-    timeInCallSecs: number;
-  }>;
+  transcript: Array<{ role: 'user' | 'agent'; message: string; timeInCallSecs: number }>;
   analysis: CallAnalysis | null;
   createdAt: string;
   completedAt: string | null;
-};
-
-type StartSetupResponse = {
-  sessionId: string;
-  firstMessage: string;
-};
-
-type SetupChatResponse = {
-  reply: string;
-  context?: ResearchContext;
-  done: boolean;
-};
-
-type CreateBriefResponse = {
-  briefId: string;
 };
 
 type GetBriefResponse = {
@@ -88,20 +64,14 @@ type GetBriefResponse = {
   createdAt: string;
 };
 
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  // Clone so we can read the body twice if needed (json first, then text fallback).
+async function readError(response: Response, fallback: string): Promise<string> {
   const clone = response.clone();
   try {
     const body = (await response.json()) as { message?: string | string[] };
     if (typeof body.message === 'string') return body.message;
     if (Array.isArray(body.message)) return body.message.join('; ');
-    // JSON but no recognizable message — dump for console debugging.
     console.error('[api] unexpected error body', body);
   } catch {
-    // Not JSON — dump the raw text so we can see what the server returned.
     try {
       const raw = await clone.text();
       console.error('[api] non-JSON error response', {
@@ -109,54 +79,15 @@ async function readError(
         body: raw.slice(0, 1000),
       });
     } catch {
-      // ignore
+      /* ignore */
     }
   }
   return `${fallback} (HTTP ${response.status})`;
 }
 
-async function startSetup(): Promise<StartSetupResponse> {
-  const response = await fetch(`${SETUP_BASE}/start`, {
-    method: 'POST',
-    headers: { ...(await authHeader()) },
-  });
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to start setup'));
-  return response.json() as Promise<StartSetupResponse>;
-}
-
-async function sendSetupMessage(
-  sessionId: string,
-  message: string,
-): Promise<SetupChatResponse> {
-  const response = await fetch(`${SETUP_BASE}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ sessionId, message }),
-  });
-  if (!response.ok) {
-    throw new Error(await readError(response, 'Failed to send setup message'));
-  }
-  return response.json() as Promise<SetupChatResponse>;
-}
-
-async function createBrief(
-  context: ResearchContext,
-): Promise<CreateBriefResponse> {
-  const response = await fetch(BRIEFS_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ context }),
-  });
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to create brief'));
-  return response.json() as Promise<CreateBriefResponse>;
-}
-
 async function getBrief(briefId: string): Promise<GetBriefResponse> {
   const response = await fetch(`${BRIEFS_BASE}/${briefId}`);
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to load brief'));
+  if (!response.ok) throw new Error(await readError(response, 'Failed to load brief'));
   return response.json() as Promise<GetBriefResponse>;
 }
 
@@ -166,37 +97,24 @@ async function startCall(briefId: string): Promise<StartCallResponse> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ briefId }),
   });
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to start call'));
+  if (!response.ok) throw new Error(await readError(response, 'Failed to start call'));
   return response.json() as Promise<StartCallResponse>;
 }
 
-async function endCall(
-  callId: string,
-  conversationId: string,
-): Promise<CallRecord> {
+async function endCall(callId: string, conversationId: string): Promise<CallRecord> {
   const response = await fetch(`${CALLS_BASE}/${callId}/end`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ conversationId }),
   });
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to end call'));
-  return response.json() as Promise<CallRecord>;
-}
-
-async function getCall(callId: string): Promise<CallRecord> {
-  const response = await fetch(`${CALLS_BASE}/${callId}`);
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to get call'));
+  if (!response.ok) throw new Error(await readError(response, 'Failed to end call'));
   return response.json() as Promise<CallRecord>;
 }
 
 /**
- * Hand off the current Supabase session to an MCP device waiting to
- * authorize. The backend validates the access token via JwtGuard and
- * stashes { accessToken, refreshToken, tokenExpiresAt, userId } so the
- * MCP's next poll picks it up. Requires the user to be signed in.
+ * Hand off the current Supabase session to a pending MCP device-flow
+ * request (identified by userCode). Server maps userCode → Mcp-Session-Id
+ * and stashes the tokens so the waiting tool call wakes instantly.
  */
 async function authorizeDevice(userCode: string): Promise<void> {
   const { data } = await supabase.auth.getSession();
@@ -212,8 +130,7 @@ async function authorizeDevice(userCode: string): Promise<void> {
       tokenExpiresAt: data.session.expires_at ?? 0,
     }),
   });
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to authorize device'));
+  if (!response.ok) throw new Error(await readError(response, 'Failed to authorize device'));
 }
 
 async function denyDevice(userCode: string): Promise<void> {
@@ -222,8 +139,7 @@ async function denyDevice(userCode: string): Promise<void> {
     headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
     body: JSON.stringify({ userCode }),
   });
-  if (!response.ok)
-    throw new Error(await readError(response, 'Failed to deny device'));
+  if (!response.ok) throw new Error(await readError(response, 'Failed to deny device'));
 }
 
 // --- Universal agent chat (apps/server /chat) -------------------------------
@@ -257,25 +173,11 @@ async function postChat(
   return response.json() as Promise<ChatResponse>;
 }
 
-export {
-  startCall,
-  endCall,
-  getCall,
-  startSetup,
-  sendSetupMessage,
-  createBrief,
-  getBrief,
-  authorizeDevice,
-  denyDevice,
-  postChat,
-};
+export { startCall, endCall, getBrief, authorizeDevice, denyDevice, postChat };
 export type {
   StartCallResponse,
   CallRecord,
   CallAnalysis,
-  StartSetupResponse,
-  SetupChatResponse,
-  CreateBriefResponse,
   GetBriefResponse,
   ChatMessage,
   ChatToolCall,

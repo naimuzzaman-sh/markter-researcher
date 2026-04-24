@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { useAuth } from '@/auth/AuthProvider';
+import { AuthBadge } from './editorial';
 import { postChat, type ChatMessage, type ChatToolCall } from '@/lib/api';
 
 type Turn = {
@@ -13,32 +12,40 @@ type Turn = {
 
 type AgentChatProps = {
   mode?: 'universal' | 'brief-setup';
+  /** Intro paragraph shown above the first message (Lead / Prologue). */
   greeting?: string;
+  /** Masthead right-hand label — e.g. "Pre-brief", "Assistant". */
+  statusLabel?: string;
+  /** Masthead kicker — e.g. "Issue № 001 — Assistant". */
+  issueLabel?: string;
+  /** Prologue kicker — e.g. "Prologue", "Brief setup". */
+  leadKicker?: string;
 };
 
 /**
- * Owns the viewport the same way SetupChat does: `h-screen flex flex-col`
- * with a fixed masthead, scroll region in the middle, sticky input at the
- * bottom. Do NOT wrap this in EditorialLayout — its padded container would
- * clip the height and push the input off-screen.
+ * Editorial chat shell (matches SetupChat's look): fixed masthead, scrollable
+ * column, sticky input. `h-screen flex flex-col` on the root so the middle
+ * region actually overflows instead of pushing the input off-screen — do NOT
+ * wrap this in EditorialLayout.
  */
 export default function AgentChat({
   mode = 'universal',
-  greeting = 'Ask me anything — I can list briefs, find candidates, inspect interviews, and more.',
+  greeting = "Ask me anything — I'll list briefs, find candidates, inspect interviews, and more.",
+  statusLabel = 'Assistant',
+  issueLabel = 'Issue № 001 — Assistant',
+  leadKicker = 'Prologue',
 }: AgentChatProps) {
-  const [turns, setTurns] = useState<Turn[]>([
-    { role: 'assistant', content: greeting },
-  ]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // Defer a frame so React commits the new DOM before we measure
+    // scrollHeight — otherwise we scroll one message short of the bottom.
     const raf = requestAnimationFrame(() => {
       el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
     });
@@ -57,10 +64,10 @@ export default function AgentChat({
     setError(null);
 
     try {
-      // Strip the client-side greeting — server only wants real user/assistant turns.
-      const wireMessages: ChatMessage[] = nextTurns
-        .slice(1)
-        .map((t) => ({ role: t.role, content: t.content }));
+      const wireMessages: ChatMessage[] = nextTurns.map((t) => ({
+        role: t.role,
+        content: t.content,
+      }));
       const response = await postChat(wireMessages, mode);
       setTurns((prev) => [
         ...prev,
@@ -80,18 +87,14 @@ export default function AgentChat({
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/', { replace: true });
-  };
-
   return (
     <div className="h-screen flex flex-col">
+      {/* Masthead */}
       <header className="border-b border-border/60 bg-background/85 backdrop-blur-sm z-10 shrink-0">
-        <div className="max-w-3xl mx-auto px-6 py-5 flex items-baseline justify-between">
+        <div className="max-w-2xl mx-auto px-6 py-5 flex items-baseline justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
-              Issue № 001 — Assistant
+              {issueLabel}
             </div>
             <h1
               className="font-serif text-2xl mt-1 tracking-tight"
@@ -101,40 +104,25 @@ export default function AgentChat({
             </h1>
           </div>
           <div className="flex items-baseline gap-4">
-            <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-accent">
-              /assistant
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+              {statusLabel}
             </div>
-            {user && (
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground truncate max-w-[160px]">
-                  {user.email ?? user.phone ?? 'signed in'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void handleSignOut()}
-                  className="font-mono text-[10px] tracking-[0.2em] uppercase text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
-                >
-                  Sign out
-                </button>
-              </div>
-            )}
+            <AuthBadge />
           </div>
         </div>
       </header>
 
+      {/* Messages scroll */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-10 space-y-6">
+        <div className="max-w-2xl mx-auto px-6 py-12 space-y-10">
+          <Lead kicker={leadKicker} body={greeting} />
+
           {turns.map((t, i) => (
-            <MessageBubble key={i} turn={t} />
+            <MessageRow key={i} turn={t} index={i} />
           ))}
-          {isThinking && (
-            <div className="flex items-center gap-2 text-sm text-foreground/60 font-mono pl-1">
-              <span className="typing-dot" />
-              <span className="typing-dot" style={{ animationDelay: '120ms' }} />
-              <span className="typing-dot" style={{ animationDelay: '240ms' }} />
-              <span className="ml-2">thinking…</span>
-            </div>
-          )}
+
+          {isThinking && <TypingRow />}
+
           {error && (
             <div className="font-mono text-xs text-destructive border-l-2 border-destructive pl-3">
               {error}
@@ -143,8 +131,9 @@ export default function AgentChat({
         </div>
       </div>
 
+      {/* Input */}
       <div className="border-t border-border/60 bg-background/85 backdrop-blur-sm shrink-0">
-        <div className="max-w-3xl mx-auto px-6 py-5">
+        <div className="max-w-2xl mx-auto px-6 py-5">
           <div className="flex items-end gap-3">
             <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground pb-3 pt-3 shrink-0">
               You —
@@ -172,27 +161,72 @@ export default function AgentChat({
   );
 }
 
-function MessageBubble({ turn }: { turn: Turn }) {
-  const isUser = turn.role === 'user';
+function Lead({ kicker, body }: { kicker: string; body: string }) {
   return (
-    <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
-      <div
-        className={
-          isUser
-            ? 'max-w-[85%] rounded-2xl rounded-tr-sm px-4 py-3 bg-foreground text-background'
-            : 'max-w-[85%] rounded-2xl rounded-tl-sm px-4 py-3 bg-foreground/5'
-        }
+    <div className="space-y-3 pb-4">
+      <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent">
+        {kicker}
+      </div>
+      <p
+        className="font-serif text-xl leading-snug text-foreground max-w-xl"
+        style={{ fontVariationSettings: "'opsz' 24" }}
       >
-        {turn.toolCalls && turn.toolCalls.length > 0 && (
-          <div className="mb-3 space-y-2">
-            {turn.toolCalls.map((tc, i) => (
-              <ToolCallChip key={i} call={tc} />
-            ))}
-          </div>
-        )}
-        <p className="whitespace-pre-wrap text-sm leading-relaxed font-serif">
+        {body}
+      </p>
+      <div className="hairline w-24 mt-6" />
+    </div>
+  );
+}
+
+function MessageRow({ turn, index }: { turn: Turn; index: number }) {
+  const isAssistant = turn.role === 'assistant';
+  const attributionLabel = isAssistant ? 'Researcher' : 'You';
+  return (
+    <article
+      className="slide-in"
+      style={{ animationDelay: `${Math.min(index * 40, 200)}ms` }}
+    >
+      <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent mb-2">
+        {attributionLabel} —{' '}
+        <span className="text-muted-foreground">
+          № {String(index + 1).padStart(2, '0')}
+        </span>
+      </div>
+
+      {isAssistant && turn.toolCalls && turn.toolCalls.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {turn.toolCalls.map((tc, i) => (
+            <ToolCallChip key={i} call={tc} />
+          ))}
+        </div>
+      )}
+
+      {isAssistant ? (
+        <p
+          className="font-serif text-lg leading-relaxed text-foreground whitespace-pre-wrap"
+          style={{ fontVariationSettings: "'opsz' 18" }}
+        >
           {turn.content}
         </p>
+      ) : (
+        <p className="text-base leading-relaxed text-foreground/85 whitespace-pre-wrap pl-4 border-l-2 border-border">
+          {turn.content}
+        </p>
+      )}
+    </article>
+  );
+}
+
+function TypingRow() {
+  return (
+    <div className="slide-in">
+      <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent mb-2">
+        Researcher —
+      </div>
+      <div className="flex gap-1.5 py-2">
+        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-foreground/60" />
+        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-foreground/60" />
+        <span className="typing-dot w-1.5 h-1.5 rounded-full bg-foreground/60" />
       </div>
     </div>
   );

@@ -2,7 +2,6 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import LandingRoute from './routes/LandingRoute';
 import LoginRoute from './routes/LoginRoute';
 import SignupRoute from './routes/SignupRoute';
-import SetupRoute from './routes/SetupRoute';
 import BriefCreatedRoute from './routes/BriefCreatedRoute';
 import InterviewRoute from './routes/InterviewRoute';
 import AuthorizeRoute from './routes/AuthorizeRoute';
@@ -49,7 +48,6 @@ function App() {
 
           {/* Protected (researcher only) */}
           <Route element={<RequireAuth />}>
-            <Route path="/setup" element={<SetupRoute />} />
             <Route path="/assistant" element={<AssistantRoute />} />
             <Route path="/briefs/:briefId" element={<BriefCreatedRoute />} />
             <Route path="/authorize/:userCode" element={<AuthorizeRoute />} />

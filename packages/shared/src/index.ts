@@ -1,15 +1,12 @@
-// Public barrel export for @market-researcher/shared.
-// Shared by apps/api, apps/web (types only), and apps/mcp.
+// Public barrel for @market-researcher/shared.
 //
-// We use explicit named re-exports (rather than `export * from './x'`) so that
-// Node's CJS→ESM named-export detection sees every symbol statically. When
-// this module is built to CommonJS and imported from the ESM MCP server, any
-// `export *` re-export compiles to a runtime `__exportStar(...)` call that
-// Node can't analyse at parse time — consumers get "does not provide an
-// export named X" errors. Listing names explicitly keeps the CJS output
-// statically traceable and the ESM interop clean.
+// Types + Zod schemas only. Consumers: apps/server (runtime), apps/web (types
+// only via its own local types folder — this barrel is not imported there).
+//
+// Explicit named re-exports (not `export *`) so CJS→ESM named-export
+// detection works statically — `export *` compiles to a runtime
+// `__exportStar` that Node can't analyse at parse time.
 
-// Zod schemas + inferred TypeScript types
 export {
   researchContextSchema,
   researchQuestionSchema,
@@ -46,12 +43,6 @@ export type {
 } from './types/call-record.type';
 
 export {
-  chatMessageSchema,
-  setupSessionSchema,
-} from './types/setup-session.type';
-export type { ChatMessage, SetupSession } from './types/setup-session.type';
-
-export {
   agentJobSchema,
   agentJobKindSchema,
   agentJobStatusSchema,
@@ -79,16 +70,3 @@ export type {
   CandidateStatus,
   CandidateSource,
 } from './types/candidate.type';
-
-// Domain services (plain classes — consumers wrap with @Injectable as needed)
-export { SupabaseService, type AuthUser } from './supabase.service';
-export { BriefsService } from './briefs.service';
-export { AgentJobsService } from './agent-jobs.service';
-export { ContactsService } from './contacts.service';
-export { CandidatesService } from './candidates.service';
-
-// Reusable prompt guidance (used by both the web's Gemini and the MCP's tool descriptions)
-export { BRIEF_SETUP_GUIDANCE } from './brief-setup-guidance';
-
-// Logger contract
-export { type SharedLogger, defaultLogger } from './logger';
