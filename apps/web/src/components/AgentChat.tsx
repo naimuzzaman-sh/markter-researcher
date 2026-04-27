@@ -22,8 +22,7 @@ type Turn = {
 };
 
 type AgentChatProps = {
-  mode?: "universal" | "brief-setup";
-  /** Masthead right-hand label — e.g. "Pre-brief", "Assistant". */
+  /** Masthead right-hand label — e.g. "Assistant". */
   statusLabel?: string;
   /** Masthead kicker — e.g. "Issue № 001 — Assistant". */
   issueLabel?: string;
@@ -36,7 +35,6 @@ type AgentChatProps = {
  * `agent-cards` registry; tool-call chips are intentionally NOT rendered.
  */
 export default function AgentChat({
-  mode = "universal",
   statusLabel = "Assistant",
   issueLabel = "Issue № 001 — Assistant",
 }: AgentChatProps) {
@@ -62,9 +60,7 @@ export default function AgentChat({
 
   // First-turn orientation: fire `get_dashboard` on mount so the user
   // lands on a live "what's going on" card instead of an empty chat.
-  // Universal mode only — brief-setup mode is its own focused flow.
   useEffect(() => {
-    if (mode !== "universal") return;
     if (dashboardFiredRef.current) return;
     dashboardFiredRef.current = true;
     let cancelled = false;
@@ -94,7 +90,7 @@ export default function AgentChat({
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, []);
 
   // Free-typed messages and prompt-style pill actions: route through the
   // LLM at /chat. Wire messages preserve `artifactRef` on assistant turns
@@ -120,7 +116,7 @@ export default function AgentChat({
               }
             : { role: "user", content: t.content },
         );
-        const response = await postChat(wireMessages, mode);
+        const response = await postChat(wireMessages);
         setTurns((prev) => [
           ...prev,
           {
@@ -136,7 +132,7 @@ export default function AgentChat({
         setIsThinking(false);
       }
     },
-    [isThinking, turns, mode],
+    [isThinking, turns],
   );
 
   // Pill actions of type 'tool' bypass the LLM entirely. Tool name + args

@@ -208,14 +208,11 @@ type ChatResponse = {
   usage: { promptTokens: number; outputTokens: number };
 };
 
-async function postChat(
-  messages: ChatMessage[],
-  mode?: 'universal' | 'brief-setup',
-): Promise<ChatResponse> {
+async function postChat(messages: ChatMessage[]): Promise<ChatResponse> {
   const response = await fetch(CHAT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ messages, mode }),
+    body: JSON.stringify({ messages }),
   });
   if (!response.ok) throw new Error(await readError(response, 'Chat failed'));
   return response.json() as Promise<ChatResponse>;

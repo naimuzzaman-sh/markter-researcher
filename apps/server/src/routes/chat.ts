@@ -6,10 +6,7 @@ import type { Logger } from '../lib/logger';
 import type { AuthVariables } from '../middleware/auth';
 import { AppError } from '../lib/errors';
 import { runAgent, type ChatTurnInput } from '../agent/run-agent';
-import {
-  UNIVERSAL_SYSTEM_PROMPT,
-  BRIEF_SETUP_SYSTEM_PROMPT,
-} from '../agent/prompts';
+import { SYSTEM_PROMPT } from '../agent/prompts';
 import { artifactToRef, pickArtifact } from '../agent/artifact';
 
 // Structured artifact reference echoed back on each assistant turn.
@@ -56,7 +53,6 @@ const bodySchema = z.object({
     )
     .min(1)
     .max(200),
-  mode: z.enum(['universal', 'brief-setup']).optional(),
 });
 
 export function createChatRoute(deps: {
@@ -72,12 +68,10 @@ export function createChatRoute(deps: {
     }
 
     const userId = c.get('userId');
-    const systemPrompt =
-      parsed.data.mode === 'brief-setup' ? BRIEF_SETUP_SYSTEM_PROMPT : UNIVERSAL_SYSTEM_PROMPT;
 
     const result = await runAgent({
       ctx: { userId, supabase: deps.supabase, config: deps.config },
-      systemPrompt,
+      systemPrompt: SYSTEM_PROMPT,
       messages: parsed.data.messages as ChatTurnInput[],
       logger: deps.logger.child({ userId, route: 'chat' }),
     });
