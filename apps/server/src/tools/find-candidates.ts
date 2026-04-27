@@ -5,6 +5,7 @@ import {
   failAgentJob,
 } from '../db/agent-jobs';
 import { briefBelongsToOwner } from '../db/candidates';
+import { getBriefById } from '../db/briefs';
 import { AppError } from '../lib/errors';
 import { runDiscovery } from './_run-discovery';
 import type { Tool } from './types';
@@ -18,7 +19,7 @@ const inputSchema = z.object({
 export const findCandidatesTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'find_candidates',
   description:
-    'Kick off an async discovery run: EXA-searches LinkedIn for people matching the brief\'s target audience (+ optional extraCriteria), creates candidates with status=pending_review, returns a `jobId`. Poll with `get_job_status`; when succeeded, call `list_candidates_for_brief`.',
+    'Kick off an async discovery run: searches the web for people matching the brief\'s target audience (+ optional extraCriteria), creates candidates with status=pending_review, returns a `jobId`. Poll with `get_job_status`; when succeeded, call `list_candidates_for_brief`. Do not echo `jobId` or any tool name to the user — the UI surfaces job state.',
   inputSchema,
   async execute(args, ctx) {
     const owns = await briefBelongsToOwner(ctx.supabase, args.briefId, ctx.userId);
@@ -47,10 +48,19 @@ export const findCandidatesTool: Tool<z.infer<typeof inputSchema>> = {
         });
     });
 
+    // Ownership enforced by `briefBelongsToOwner` above. Surface briefName
+    // so the JobStatus card can compose pill prompts without a round-trip.
+    const brief = await getBriefById(ctx.supabase, args.briefId);
+
+    // No `next` field on the wire — when present, the agent tends to
+    // parrot tool names and raw IDs back to the user. The agent already
+    // knows the polling pattern from the tool description.
     return {
       jobId,
+      kind: 'discovery' as const,
       status: 'queued' as const,
-      next: `Poll with get_job_status({ jobId: "${jobId}" }) until succeeded, then list_candidates_for_brief({ briefId: "${args.briefId}" }).`,
+      briefId: args.briefId,
+      briefName: brief?.researchContext.product?.name ?? null,
     };
   },
 };

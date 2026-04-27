@@ -10,9 +10,11 @@ vi.mock('../db/briefs', () => ({
 }));
 
 const cfg: Config = {
-  port: 3001, nodeEnv: 'test', webOrigins: [], supabaseUrl: 'x', supabaseAnonKey: 'x',
+  port: 3001, nodeEnv: 'test', webOrigins: ['http://localhost:5173'],
+  webOrigin: 'http://localhost:5173', supabaseUrl: 'x', supabaseAnonKey: 'x',
   geminiApiKey: 'x', exaApiKey: 'x', openaiApiKey: 'x', elevenlabsApiKey: 'x',
   elevenlabsVoiceId: 'x', elevenlabsWebhookSecret: 'x',
+  resendApiKey: 'x', resendFromEmail: 'research@example.com',
 };
 
 describe('listBriefsTool', () => {

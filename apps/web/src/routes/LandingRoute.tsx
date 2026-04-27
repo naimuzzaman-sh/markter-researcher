@@ -6,7 +6,7 @@ import { useAuth } from '@/auth/AuthProvider';
 /**
  * Public landing page. Product pitch + CTAs.
  * - Signed-out visitors: "Sign in" / "Create account".
- * - Signed-in visitors: "Open workspace" (→ /setup).
+ * - Signed-in visitors: "Open workspace" (→ /assistant).
  */
 function LandingRoute() {
   const { user } = useAuth();
@@ -59,7 +59,7 @@ function LandingRoute() {
 
         <div className="flex flex-wrap gap-3 pt-2">
           {user ? (
-            <Link to="/setup">
+            <Link to="/assistant">
               <Button className="rounded-full h-12 px-8 font-mono text-[11px] tracking-[0.2em] uppercase bg-accent text-accent-foreground hover:bg-accent/90">
                 Open workspace →
               </Button>

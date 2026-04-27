@@ -25,6 +25,8 @@ import { analyzeTranscript } from '../agent/analyze-transcript';
 type CallRecord = {
   id: string;
   briefId: string;
+  /** Candidate the interviewee was invited as (from `?cid=` on the URL). */
+  candidateId: string | null;
   agentId: string;
   context: ResearchContext;
   createdAt: Date;
@@ -47,7 +49,13 @@ export function createCallsRoute(deps: {
 }) {
   const inFlight = new Map<string, CallRecord>();
 
-  const startBody = z.object({ briefId: z.string().uuid() });
+  const startBody = z.object({
+    briefId: z.string().uuid(),
+    // Optional — present when the interviewee landed via an invite URL
+    // (`/interview/<briefId>?cid=<candidateId>`). Lets us attribute the
+    // completed interview back to the candidate row in `/calls/:id/end`.
+    candidateId: z.string().uuid().optional(),
+  });
   const endBody = z.object({ conversationId: z.string().min(1) });
 
   const app = new Hono();
@@ -72,6 +80,7 @@ export function createCallsRoute(deps: {
     const record: CallRecord = {
       id: randomUUID(),
       briefId: brief.id,
+      candidateId: parsed.data.candidateId ?? null,
       agentId,
       context: brief.researchContext,
       createdAt: new Date(),
@@ -123,8 +132,9 @@ export function createCallsRoute(deps: {
     const completedAt = new Date();
     const durationSecs = Math.round((completedAt.getTime() - record.createdAt.getTime()) / 1000);
 
+    let interviewId: string | null = null;
     try {
-      await saveInterview(deps.supabase, {
+      interviewId = await saveInterview(deps.supabase, {
         callId: record.id,
         agentId: record.agentId,
         briefId: record.briefId,
@@ -138,6 +148,23 @@ export function createCallsRoute(deps: {
       });
     } catch (err) {
       logger.error('persistInterview failed', { err });
+    }
+
+    // If the interviewee arrived via an invite link, attribute the
+    // interview back to the candidate row and advance their status.
+    if (record.candidateId && interviewId && status === 'completed') {
+      try {
+        const { error } = await deps.supabase
+          .from('brief_candidates')
+          .update({ interview_id: interviewId, status: 'interviewed' })
+          .eq('id', record.candidateId);
+        if (error) throw error;
+      } catch (err) {
+        logger.error('candidate attribution failed', {
+          candidateId: record.candidateId,
+          err,
+        });
+      }
     }
 
     // Fire-and-forget agent cleanup.

@@ -13,6 +13,18 @@ type InterviewListRow = {
   duration_secs: number | null;
   analysis: { overallSentiment?: 'positive' | 'neutral' | 'negative' } | null;
   completed_at: string | null;
+  briefs: {
+    research_context: { product?: { name?: string } } | null;
+  } | null;
+  brief_candidate:
+    | { contact: { name: string } | { name: string }[] | null }
+    | { contact: { name: string } | { name: string }[] | null }[]
+    | null;
+};
+
+export type InterviewSummaryWithNames = InterviewSummary & {
+  briefName: string | null;
+  contactName: string | null;
 };
 
 type InterviewDetailRow = {
@@ -35,11 +47,13 @@ export async function listInterviewsByOwner(
   ownerId: string,
   briefId: string | undefined,
   limit: number,
-): Promise<InterviewSummary[]> {
+): Promise<InterviewSummaryWithNames[]> {
   let query = client
     .from('interviews')
     .select(
-      'id, brief_id, status, duration_secs, analysis, completed_at, briefs!inner(owner_id)',
+      `id, brief_id, status, duration_secs, analysis, completed_at,
+       briefs!inner(owner_id, research_context),
+       brief_candidate:brief_candidates!interview_id(contact:contacts(name))`,
     )
     .eq('briefs.owner_id', ownerId);
 
@@ -51,14 +65,34 @@ export async function listInterviewsByOwner(
 
   if (error) throw new AppError('upstream', `Failed to list interviews: ${error.message}`);
 
-  return ((data ?? []) as InterviewListRow[]).map((row) => ({
-    interviewId: row.id,
-    briefId: row.brief_id,
-    status: row.status,
-    durationSecs: row.duration_secs,
-    overallSentiment: row.analysis?.overallSentiment ?? null,
-    completedAt: row.completed_at ? new Date(row.completed_at) : null,
-  }));
+  // Supabase types embedded relations as object | array. Normalize to scalars.
+  const rows = (data ?? []) as unknown as InterviewListRow[];
+
+  return rows.map((row) => {
+    const brief = Array.isArray(row.briefs) ? row.briefs[0] : row.briefs;
+    const briefName = brief?.research_context?.product?.name ?? null;
+
+    const candidate = Array.isArray(row.brief_candidate)
+      ? row.brief_candidate[0]
+      : row.brief_candidate;
+    const candidateContact = candidate
+      ? Array.isArray(candidate.contact)
+        ? candidate.contact[0]
+        : candidate.contact
+      : null;
+    const contactName = candidateContact?.name ?? null;
+
+    return {
+      interviewId: row.id,
+      briefId: row.brief_id,
+      briefName,
+      contactName,
+      status: row.status,
+      durationSecs: row.duration_secs,
+      overallSentiment: row.analysis?.overallSentiment ?? null,
+      completedAt: row.completed_at ? new Date(row.completed_at) : null,
+    };
+  });
 }
 
 /**
@@ -97,7 +131,7 @@ export async function getInterviewById(
 export async function saveInterview(
   client: SupabaseClient,
   interview: SavedInterview,
-): Promise<void> {
+): Promise<string> {
   const row = {
     call_id: interview.callId,
     agent_id: interview.agentId,
@@ -110,6 +144,14 @@ export async function saveInterview(
     duration_secs: interview.durationSecs,
     completed_at: interview.completedAt ? interview.completedAt.toISOString() : null,
   };
-  const { error } = await client.from('interviews').insert(row);
+  const { data, error } = await client
+    .from('interviews')
+    .insert(row)
+    .select('id')
+    .single();
   if (error) throw new AppError('upstream', `Failed to save interview: ${error.message}`);
+  if (!data || typeof (data as { id?: unknown }).id !== 'string') {
+    throw new AppError('internal', 'Interview insert returned no id');
+  }
+  return (data as { id: string }).id;
 }

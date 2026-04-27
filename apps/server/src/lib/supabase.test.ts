@@ -13,6 +13,7 @@ const cfg: Config = {
   port: 3001,
   nodeEnv: 'test',
   webOrigins: ['http://localhost:5173'],
+  webOrigin: 'http://localhost:5173',
   supabaseUrl: 'https://test.supabase.co',
   supabaseAnonKey: 'anon',
   geminiApiKey: 'g',
@@ -21,6 +22,8 @@ const cfg: Config = {
   elevenlabsApiKey: 'el',
   elevenlabsVoiceId: 'v',
   elevenlabsWebhookSecret: 's',
+  resendApiKey: 'r',
+  resendFromEmail: 'research@example.com',
 };
 
 describe('createSupabaseClient', () => {

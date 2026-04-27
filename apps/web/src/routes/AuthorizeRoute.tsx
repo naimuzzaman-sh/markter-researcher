@@ -98,7 +98,7 @@ function AuthorizeRoute() {
           <div className="flex flex-wrap gap-3">
             <Button
               variant="outline"
-              onClick={() => navigate('/setup')}
+              onClick={() => navigate('/assistant')}
               className="rounded-full h-11 px-6 font-mono text-[11px] tracking-[0.2em] uppercase border-foreground/20 hover:bg-foreground/5"
             >
               Back to workspace →

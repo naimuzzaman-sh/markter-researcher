@@ -8,10 +8,21 @@ import { AppError } from '../lib/errors';
 import type { Logger } from '../lib/logger';
 import { tools as allTools } from '../tools/index';
 import type { ToolCtx, ToolRegistry } from '../tools/types';
+import {
+  type ArtifactRef,
+  renderEntitiesInScope,
+} from './artifact';
 
 export type ChatTurnInput =
   | { role: 'user'; content: string }
-  | { role: 'assistant'; content: string };
+  | {
+      role: 'assistant';
+      content: string;
+      // Carries the structured "what was on screen" reference from the
+      // server's previous reply. Lets the agent resolve "this brief",
+      // "her", etc. without re-doing name → id lookups.
+      artifactRef?: ArtifactRef;
+    };
 
 export type ToolCallRecord = {
   name: string;
@@ -107,6 +118,26 @@ function toGeminiMessages(history: ChatTurnInput[]): GeminiMessage[] {
 }
 
 /**
+ * Build the dynamic system instruction: caller's static system prompt
+ * plus an "Entities in scope" block assembled from the structured
+ * artifact references on prior assistant turns. Agent uses these IDs as
+ * authoritative when the user references entities vaguely.
+ */
+function buildSystemInstruction(
+  staticPrompt: string,
+  history: ChatTurnInput[],
+): string {
+  const refs = history
+    .filter((m): m is ChatTurnInput & { role: 'assistant'; artifactRef: ArtifactRef } =>
+      m.role === 'assistant' && !!m.artifactRef,
+    )
+    .map((m) => m.artifactRef);
+  const block = renderEntitiesInScope(refs);
+  if (!block) return staticPrompt;
+  return `${staticPrompt}\n\n${block}`;
+}
+
+/**
  * Core agent loop. Streams Gemini turns, dispatches tool calls through the
  * shared tool registry, appends results as `functionResponse` parts, and
  * stops when Gemini emits a text-only response (or max iterations hit).
@@ -114,6 +145,10 @@ function toGeminiMessages(history: ChatTurnInput[]): GeminiMessage[] {
 export async function runAgent(input: RunInput): Promise<AgentResult> {
   const registry = input.tools ?? allTools;
   const geminiTools = toGeminiTools(registry);
+  const systemInstruction = buildSystemInstruction(
+    input.systemPrompt,
+    input.messages,
+  );
   const conversation: GeminiMessage[] = toGeminiMessages(input.messages);
   const toolCalls: ToolCallRecord[] = [];
   let totalPrompt = 0;
@@ -123,7 +158,7 @@ export async function runAgent(input: RunInput): Promise<AgentResult> {
   for (let iter = 0; iter < maxIters; iter++) {
     const turn = await geminiChatTurn({
       apiKey: input.ctx.config.geminiApiKey,
-      systemInstruction: input.systemPrompt,
+      systemInstruction,
       messages: conversation,
       tools: geminiTools,
     });

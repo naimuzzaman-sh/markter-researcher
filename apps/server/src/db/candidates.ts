@@ -3,6 +3,7 @@ import type {
   BriefCandidate,
   CandidateStatus,
   CandidateSource,
+  ContactSummary,
 } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 
@@ -105,6 +106,60 @@ export async function listCandidatesForBrief(
 
   if (error) throw new AppError('upstream', `Failed to list candidates: ${error.message}`);
   return ((data ?? []) as CandidateRow[]).map(rowToCandidate);
+}
+
+type ContactJoinRow = {
+  id: string;
+  name: string;
+  title: string | null;
+  linkedin_url: string | null;
+  company_name: string | null;
+};
+
+/**
+ * Like `listCandidatesForBrief` but joins the contact summary so callers can
+ * render the candidate's name/title/company without a second round-trip.
+ * Sorted by match_score (desc, nulls last) then created_at desc, so the best
+ * matches surface first when the agent shows the list.
+ */
+export async function listCandidatesForBriefWithContact(
+  client: SupabaseClient,
+  briefId: string,
+  limit: number,
+): Promise<Array<{ candidate: BriefCandidate; contact: ContactSummary }>> {
+  const { data, error } = await client
+    .from('brief_candidates')
+    .select(
+      `${COLS}, contact:contacts(id, name, title, linkedin_url, company_name)`,
+    )
+    .eq('brief_id', briefId)
+    .order('match_score', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new AppError('upstream', `Failed to list candidates: ${error.message}`);
+
+  // Supabase can type a to-one join as an array. Normalize.
+  const rows = (data ?? []) as unknown as Array<
+    CandidateRow & { contact: ContactJoinRow | ContactJoinRow[] | null }
+  >;
+
+  return rows
+    .map((row) => {
+      const c = Array.isArray(row.contact) ? row.contact[0] : row.contact;
+      if (!c) return null;
+      return {
+        candidate: rowToCandidate(row),
+        contact: {
+          id: c.id,
+          name: c.name,
+          title: c.title,
+          linkedinUrl: c.linkedin_url,
+          companyName: c.company_name,
+        } satisfies ContactSummary,
+      };
+    })
+    .filter((entry): entry is { candidate: BriefCandidate; contact: ContactSummary } => entry !== null);
 }
 
 export async function updateCandidateStatus(

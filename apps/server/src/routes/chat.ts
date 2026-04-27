@@ -10,14 +10,49 @@ import {
   UNIVERSAL_SYSTEM_PROMPT,
   BRIEF_SETUP_SYSTEM_PROMPT,
 } from '../agent/prompts';
+import { artifactToRef, pickArtifact } from '../agent/artifact';
+
+// Structured artifact reference echoed back on each assistant turn.
+// Round-trips through the wire so subsequent /chat calls let the agent
+// see "Entities in scope" without re-doing name → id resolution. Flat
+// list of (kind, id, name) entities — uniform shape for list, detail,
+// and mutation artifacts.
+const scopeEntitySchema = z.object({
+  kind: z.enum(['brief', 'candidate', 'contact', 'interview', 'job']),
+  id: z.string().min(1),
+  name: z.string().optional(),
+});
+
+const artifactRefSchema = z.object({
+  type: z.enum([
+    'brief.list',
+    'brief.detail',
+    'candidate.list',
+    'candidate.detail',
+    'candidate.mutation',
+    'contact.list',
+    'contact.detail',
+    'interview.list',
+    'interview.detail',
+    'job.status',
+  ]),
+  entities: z.array(scopeEntitySchema).default([]),
+});
 
 const bodySchema = z.object({
   messages: z
     .array(
-      z.object({
-        role: z.enum(['user', 'assistant']),
-        content: z.string().min(1).max(50_000),
-      }),
+      z.discriminatedUnion('role', [
+        z.object({
+          role: z.literal('user'),
+          content: z.string().min(1).max(50_000),
+        }),
+        z.object({
+          role: z.literal('assistant'),
+          content: z.string().min(0).max(50_000),
+          artifactRef: artifactRefSchema.optional(),
+        }),
+      ]),
     )
     .min(1)
     .max(200),
@@ -47,15 +82,16 @@ export function createChatRoute(deps: {
       logger: deps.logger.child({ userId, route: 'chat' }),
     });
 
+    // Single artifact per turn. Tool calls are internal mechanism and
+    // intentionally omitted from the wire — we don't want the client
+    // re-deriving "what to render" from raw tool history.
+    const artifact = pickArtifact(result.toolCalls);
+    const artifactRef = artifact ? artifactToRef(artifact) : null;
+
     return c.json({
       reply: result.finalText,
-      toolCalls: result.toolCalls.map((tc) => ({
-        name: tc.name,
-        args: tc.args,
-        result: tc.result,
-        error: tc.error,
-        durationMs: tc.durationMs,
-      })),
+      artifact,
+      artifactRef,
       usage: result.usage,
     });
   });

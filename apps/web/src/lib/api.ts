@@ -91,11 +91,17 @@ async function getBrief(briefId: string): Promise<GetBriefResponse> {
   return response.json() as Promise<GetBriefResponse>;
 }
 
-async function startCall(briefId: string): Promise<StartCallResponse> {
+async function startCall(
+  briefId: string,
+  candidateId?: string,
+): Promise<StartCallResponse> {
   const response = await fetch(`${CALLS_BASE}/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ briefId }),
+    // candidateId is forwarded only when the interviewee landed via an
+    // invite URL (`/interview/<briefId>?cid=...`); the server uses it to
+    // attribute the interview back to the candidate row when the call ends.
+    body: JSON.stringify(candidateId ? { briefId, candidateId } : { briefId }),
   });
   if (!response.ok) throw new Error(await readError(response, 'Failed to start call'));
   return response.json() as Promise<StartCallResponse>;
@@ -144,19 +150,60 @@ async function denyDevice(userCode: string): Promise<void> {
 
 // --- Universal agent chat (apps/server /chat) -------------------------------
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string };
+/**
+ * The chat route picks AT MOST ONE artifact per assistant turn — the last
+ * successful tool call that returned a known entity shape. Raw tool-call
+ * history is intentionally NOT on the wire: the client renders only
+ * `reply` + (optionally) `artifact`. Everything else is internal mechanism.
+ */
+type ArtifactType =
+  | 'brief.list'
+  | 'brief.detail'
+  | 'candidate.list'
+  | 'candidate.detail'
+  | 'candidate.mutation'
+  | 'contact.list'
+  | 'contact.detail'
+  | 'interview.list'
+  | 'interview.detail'
+  | 'job.status';
 
-type ChatToolCall = {
-  name: string;
-  args: Record<string, unknown>;
-  result: unknown | null;
-  error: string | null;
-  durationMs: number;
+type Artifact = {
+  type: ArtifactType;
+  data: unknown;
 };
+
+type EntityKind = 'brief' | 'candidate' | 'contact' | 'interview' | 'job';
+
+type ScopeEntity = {
+  kind: EntityKind;
+  id: string;
+  name?: string;
+};
+
+/**
+ * Structured "what was on screen" reference. Server emits one per
+ * artifact-bearing assistant turn. Client stores it on the assistant
+ * Turn and sends it back on the next postChat — the agent uses these
+ * IDs as authoritative when the user references entities vaguely.
+ *
+ * Flat entity list works for both list-type artifacts (one entity per
+ * item) and detail-type artifacts (focal entity + parent). The server
+ * dedupes across the conversation when building "Entities in scope".
+ */
+type ArtifactRef = {
+  type: ArtifactType;
+  entities: ScopeEntity[];
+};
+
+type ChatMessage =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; content: string; artifactRef?: ArtifactRef };
 
 type ChatResponse = {
   reply: string;
-  toolCalls: ChatToolCall[];
+  artifact: Artifact | null;
+  artifactRef: ArtifactRef | null;
   usage: { promptTokens: number; outputTokens: number };
 };
 
@@ -173,13 +220,73 @@ async function postChat(
   return response.json() as Promise<ChatResponse>;
 }
 
-export { startCall, endCall, getBrief, authorizeDevice, denyDevice, postChat };
+const RUN_TOOL_URL = `${API_BASE}/run-tool`;
+
+type RunToolResponse = {
+  reply: string;
+  artifact: Artifact | null;
+  artifactRef: ArtifactRef | null;
+};
+
+/**
+ * Deterministic tool execution. Used by pill clicks where the tool name
+ * and args are known at the click site — bypasses the LLM in /chat.
+ *
+ * Same artifact/artifactRef shape as ChatResponse, so the resulting
+ * synthetic assistant turn appears identical to an LLM-produced one.
+ */
+async function runTool(
+  name: string,
+  args: Record<string, unknown>,
+): Promise<RunToolResponse> {
+  const response = await fetch(RUN_TOOL_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
+    body: JSON.stringify({ name, args }),
+  });
+  if (!response.ok) throw new Error(await readError(response, 'Action failed'));
+  return response.json() as Promise<RunToolResponse>;
+}
+
+/**
+ * What a pill or card click resolves to. Discriminated so the chat shell
+ * can dispatch deterministically — tool actions hit /run-tool, prompts
+ * hit /chat, externals hit window.* directly, copy puts text on the
+ * clipboard with no chat side-effect.
+ */
+type PillAction =
+  | {
+      kind: 'tool';
+      toolName: string;
+      toolArgs: Record<string, unknown>;
+      displayText: string;
+    }
+  | { kind: 'prompt'; text: string }
+  | { kind: 'href'; url: string }
+  | { kind: 'mailto'; address: string }
+  | { kind: 'copy'; text: string };
+
+export {
+  startCall,
+  endCall,
+  getBrief,
+  authorizeDevice,
+  denyDevice,
+  postChat,
+  runTool,
+};
 export type {
   StartCallResponse,
   CallRecord,
   CallAnalysis,
   GetBriefResponse,
   ChatMessage,
-  ChatToolCall,
   ChatResponse,
+  RunToolResponse,
+  PillAction,
+  Artifact,
+  ArtifactType,
+  ArtifactRef,
+  ScopeEntity,
+  EntityKind,
 };

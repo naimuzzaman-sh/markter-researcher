@@ -12,6 +12,7 @@ import { listCandidatesForBriefTool } from './list-candidates-for-brief';
 import { getCandidateTool } from './get-candidate';
 import { approveCandidateTool } from './approve-candidate';
 import { rejectCandidateTool } from './reject-candidate';
+import { inviteCandidateTool } from './invite-candidate';
 import { listContactsTool } from './list-contacts';
 import { getContactTool } from './get-contact';
 
@@ -35,6 +36,7 @@ export const tools: ToolRegistry = {
   [getCandidateTool.name]: getCandidateTool,
   [approveCandidateTool.name]: approveCandidateTool,
   [rejectCandidateTool.name]: rejectCandidateTool,
+  [inviteCandidateTool.name]: inviteCandidateTool,
   [listContactsTool.name]: listContactsTool,
   [getContactTool.name]: getContactTool,
 } as const;

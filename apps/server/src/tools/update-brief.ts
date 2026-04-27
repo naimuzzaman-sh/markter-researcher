@@ -6,6 +6,7 @@ import {
 } from '@mirrars/shared';
 import { z } from 'zod';
 import { getBriefById, updateBriefById } from '../db/briefs';
+import { buildInterviewUrl } from '../lib/interview-url';
 import { AppError } from '../lib/errors';
 import type { Tool } from './types';
 
@@ -63,6 +64,7 @@ export const updateBriefTool: Tool<z.infer<typeof inputSchema>> = {
       briefId: updated.id,
       researchContext: updated.researchContext,
       createdAt: updated.createdAt.toISOString(),
+      interviewUrl: buildInterviewUrl(ctx.config.webOrigin, updated.id),
     };
   },
 };

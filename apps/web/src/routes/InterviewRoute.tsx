@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ConversationProvider } from '@elevenlabs/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +14,10 @@ type Stage = 'loading' | 'welcome' | 'launching' | 'live' | 'done' | 'error';
 
 function InterviewRoute() {
   const { briefId } = useParams<{ briefId: string }>();
+  const [searchParams] = useSearchParams();
+  // `?cid=<candidateId>` is set on invite links; if present we forward
+  // it to /calls/start so the completed interview attributes back.
+  const candidateId = searchParams.get('cid') ?? undefined;
   const [brief, setBrief] = useState<GetBriefResponse | null>(null);
   const [stage, setStage] = useState<Stage>('loading');
   const [callId, setCallId] = useState<string | null>(null);
@@ -49,7 +53,7 @@ function InterviewRoute() {
     setStage('launching');
     setError(null);
     try {
-      const response = await startCall(briefId);
+      const response = await startCall(briefId, candidateId);
       setCallId(response.callId);
       setSignedUrl(response.signedUrl);
       setStage('live');
@@ -57,7 +61,7 @@ function InterviewRoute() {
       setError(err instanceof Error ? err.message : 'Failed to start call');
       setStage('error');
     }
-  }, [briefId]);
+  }, [briefId, candidateId]);
 
   if (stage === 'loading') {
     return (

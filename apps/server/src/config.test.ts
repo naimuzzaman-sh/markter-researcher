@@ -13,6 +13,8 @@ const validEnv = {
   ELEVENLABS_API_KEY: 'ekey',
   ELEVENLABS_VOICE_ID: 'voice',
   ELEVENLABS_WEBHOOK_SECRET: 'secret',
+  RESEND_API_KEY: 'rkey',
+  RESEND_FROM_EMAIL: 'research@example.com',
 };
 
 describe('loadConfig', () => {

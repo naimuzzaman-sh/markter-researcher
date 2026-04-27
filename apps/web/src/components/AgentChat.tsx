@@ -1,17 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { AuthBadge } from './editorial';
-import { postChat, type ChatMessage, type ChatToolCall } from '@/lib/api';
+import {
+  postChat,
+  runTool,
+  type Artifact,
+  type ArtifactRef,
+  type ChatMessage,
+  type PillAction,
+} from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { renderArtifact } from "./agent-cards";
+import { AuthBadge } from "./editorial";
+import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
 
 type Turn = {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
-  toolCalls?: ChatToolCall[];
+  artifact?: Artifact | null;
+  // Round-trips with the server so future turns get "Entities in scope".
+  // Set by server; client treats as opaque carry-forward state.
+  artifactRef?: ArtifactRef | null;
 };
 
 type AgentChatProps = {
-  mode?: 'universal' | 'brief-setup';
+  mode?: "universal" | "brief-setup";
   /** Intro paragraph shown above the first message (Lead / Prologue). */
   greeting?: string;
   /** Masthead right-hand label — e.g. "Pre-brief", "Assistant". */
@@ -23,20 +34,20 @@ type AgentChatProps = {
 };
 
 /**
- * Editorial chat shell (matches SetupChat's look): fixed masthead, scrollable
- * column, sticky input. `h-screen flex flex-col` on the root so the middle
- * region actually overflows instead of pushing the input off-screen — do NOT
- * wrap this in EditorialLayout.
+ * Editorial chat shell: fixed masthead, scrollable column, sticky input.
+ * `h-screen flex flex-col` so the middle region overflows instead of pushing
+ * the input off-screen. Tool results render as structured cards via the
+ * `agent-cards` registry; tool-call chips are intentionally NOT rendered.
  */
 export default function AgentChat({
-  mode = 'universal',
+  mode = "universal",
   greeting = "Ask me anything — I'll list briefs, find candidates, inspect interviews, and more.",
-  statusLabel = 'Assistant',
-  issueLabel = 'Issue № 001 — Assistant',
-  leadKicker = 'Prologue',
+  statusLabel = "Assistant",
+  issueLabel = "Issue № 001 — Assistant",
+  leadKicker = "Prologue",
 }: AgentChatProps) {
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -47,41 +58,134 @@ export default function AgentChat({
     // Defer a frame so React commits the new DOM before we measure
     // scrollHeight — otherwise we scroll one message short of the bottom.
     const raf = requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     });
     return () => cancelAnimationFrame(raf);
   }, [turns, isThinking]);
 
+  // Free-typed messages and prompt-style pill actions: route through the
+  // LLM at /chat. Wire messages preserve `artifactRef` on assistant turns
+  // so the server can rebuild the "Entities in scope" block.
+  const handleSendText = useCallback(
+    async (rawText: string) => {
+      const text = rawText.trim();
+      if (!text || isThinking) return;
+
+      const userTurn: Turn = { role: "user", content: text };
+      const nextTurns = [...turns, userTurn];
+      setTurns(nextTurns);
+      setIsThinking(true);
+      setError(null);
+
+      try {
+        const wireMessages: ChatMessage[] = nextTurns.map((t) =>
+          t.role === "assistant"
+            ? {
+                role: "assistant",
+                content: t.content,
+                ...(t.artifactRef ? { artifactRef: t.artifactRef } : {}),
+              }
+            : { role: "user", content: t.content },
+        );
+        const response = await postChat(wireMessages, mode);
+        setTurns((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: response.reply,
+            artifact: response.artifact,
+            artifactRef: response.artifactRef,
+          },
+        ]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Chat failed");
+      } finally {
+        setIsThinking(false);
+      }
+    },
+    [isThinking, turns, mode],
+  );
+
+  // Pill actions of type 'tool' bypass the LLM entirely. Tool name + args
+  // are already known at the click site; we just need the server to run
+  // the tool and stamp the artifact. Result is appended as a synthetic
+  // assistant turn that looks identical to an LLM-produced one.
+  const handleRunTool = useCallback(
+    async (
+      displayText: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+    ) => {
+      if (isThinking) return;
+      const userTurn: Turn = { role: "user", content: displayText };
+      setTurns((prev) => [...prev, userTurn]);
+      setIsThinking(true);
+      setError(null);
+      try {
+        const response = await runTool(toolName, toolArgs);
+        setTurns((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: response.reply,
+            artifact: response.artifact,
+            artifactRef: response.artifactRef,
+          },
+        ]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Action failed");
+      } finally {
+        setIsThinking(false);
+      }
+    },
+    [isThinking],
+  );
+
   const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isThinking) return;
+    const text = input;
+    setInput("");
+    await handleSendText(text);
+  }, [input, handleSendText]);
 
-    const userTurn: Turn = { role: 'user', content: text };
-    const nextTurns = [...turns, userTurn];
-    setTurns(nextTurns);
-    setInput('');
-    setIsThinking(true);
-    setError(null);
-
-    try {
-      const wireMessages: ChatMessage[] = nextTurns.map((t) => ({
-        role: t.role,
-        content: t.content,
-      }));
-      const response = await postChat(wireMessages, mode);
-      setTurns((prev) => [
-        ...prev,
-        { role: 'assistant', content: response.reply, toolCalls: response.toolCalls },
-      ]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Chat failed');
-    } finally {
-      setIsThinking(false);
-    }
-  }, [input, isThinking, turns, mode]);
+  // Single dispatcher for all card/pill clicks. Routes by action.kind so
+  // pills don't need to know about endpoints.
+  const handleAction = useCallback(
+    (action: PillAction) => {
+      switch (action.kind) {
+        case "tool":
+          void handleRunTool(
+            action.displayText,
+            action.toolName,
+            action.toolArgs,
+          );
+          break;
+        case "prompt":
+          void handleSendText(action.text);
+          break;
+        case "href":
+          window.open(action.url, "_blank", "noopener,noreferrer");
+          break;
+        case "mailto":
+          window.location.href = `mailto:${action.address}`;
+          break;
+        case "copy":
+          // Local-only side effect — no chat turn. ActionPill manages its
+          // own ephemeral "Copied ✓" feedback state.
+          void navigator.clipboard.writeText(action.text).catch((err) => {
+            setError(
+              err instanceof Error
+                ? `Couldn't copy: ${err.message}`
+                : "Couldn't copy to clipboard",
+            );
+          });
+          break;
+      }
+    },
+    [handleRunTool, handleSendText],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
     }
@@ -91,7 +195,7 @@ export default function AgentChat({
     <div className="h-screen flex flex-col">
       {/* Masthead */}
       <header className="border-b border-border/60 bg-background/85 backdrop-blur-sm z-10 shrink-0">
-        <div className="max-w-2xl mx-auto px-6 py-5 flex items-baseline justify-between">
+        <div className="max-w-5xl mx-auto px-6 py-5 flex items-baseline justify-between">
           <div>
             <div className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
               {issueLabel}
@@ -112,13 +216,15 @@ export default function AgentChat({
         </div>
       </header>
 
-      {/* Messages scroll */}
+      {/* Messages scroll — wider than masthead/input so card grids can show
+          2 or 3 list items per row without horizontal scrolling. Prose
+          paragraphs are clamped narrower inside MessageRow. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto px-6 py-12 space-y-10">
+        <div className="max-w-5xl mx-auto px-6 py-12 space-y-10">
           <Lead kicker={leadKicker} body={greeting} />
 
           {turns.map((t, i) => (
-            <MessageRow key={i} turn={t} index={i} />
+            <MessageRow key={i} turn={t} index={i} onAction={handleAction} />
           ))}
 
           {isThinking && <TypingRow />}
@@ -133,7 +239,7 @@ export default function AgentChat({
 
       {/* Input */}
       <div className="border-t border-border/60 bg-background/85 backdrop-blur-sm shrink-0">
-        <div className="max-w-2xl mx-auto px-6 py-5">
+        <div className="max-w-5xl mx-auto px-6 py-5">
           <div className="flex items-end gap-3">
             <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground pb-3 pt-3 shrink-0">
               You —
@@ -178,38 +284,47 @@ function Lead({ kicker, body }: { kicker: string; body: string }) {
   );
 }
 
-function MessageRow({ turn, index }: { turn: Turn; index: number }) {
-  const isAssistant = turn.role === 'assistant';
-  const attributionLabel = isAssistant ? 'Researcher' : 'You';
+function MessageRow({
+  turn,
+  index,
+  onAction,
+}: {
+  turn: Turn;
+  index: number;
+  onAction: (action: PillAction) => void;
+}) {
+  const isAssistant = turn.role === "assistant";
+  const attributionLabel = isAssistant ? "Researcher" : "You";
   return (
     <article
       className="slide-in"
       style={{ animationDelay: `${Math.min(index * 40, 200)}ms` }}
     >
       <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent mb-2">
-        {attributionLabel} —{' '}
+        {attributionLabel} —{" "}
         <span className="text-muted-foreground">
-          № {String(index + 1).padStart(2, '0')}
+          № {String(index + 1).padStart(2, "0")}
         </span>
       </div>
 
-      {isAssistant && turn.toolCalls && turn.toolCalls.length > 0 && (
-        <div className="mb-3 space-y-2">
-          {turn.toolCalls.map((tc, i) => (
-            <ToolCallChip key={i} call={tc} />
-          ))}
-        </div>
-      )}
-
       {isAssistant ? (
-        <p
-          className="font-serif text-lg leading-relaxed text-foreground whitespace-pre-wrap"
-          style={{ fontVariationSettings: "'opsz' 18" }}
-        >
-          {turn.content}
-        </p>
+        <>
+          {turn.content && (
+            <p
+              className="font-serif text-lg leading-relaxed text-foreground whitespace-pre-wrap max-w-2xl"
+              style={{ fontVariationSettings: "'opsz' 18" }}
+            >
+              {turn.content}
+            </p>
+          )}
+          {turn.artifact && (
+            <div className="mt-4">
+              {renderArtifact(turn.artifact, onAction)}
+            </div>
+          )}
+        </>
       ) : (
-        <p className="text-base leading-relaxed text-foreground/85 whitespace-pre-wrap pl-4 border-l-2 border-border">
+        <p className="text-base leading-relaxed text-foreground/85 whitespace-pre-wrap pl-4 border-l-2 border-border max-w-2xl">
           {turn.content}
         </p>
       )}
@@ -228,53 +343,6 @@ function TypingRow() {
         <span className="typing-dot w-1.5 h-1.5 rounded-full bg-foreground/60" />
         <span className="typing-dot w-1.5 h-1.5 rounded-full bg-foreground/60" />
       </div>
-    </div>
-  );
-}
-
-function ToolCallChip({ call }: { call: ChatToolCall }) {
-  const [open, setOpen] = useState(false);
-  const hasError = !!call.error;
-  return (
-    <div className="border border-foreground/10 rounded-lg overflow-hidden text-xs font-mono">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 bg-foreground/5 hover:bg-foreground/10 text-left"
-      >
-        <span className="flex items-center gap-2">
-          <span
-            className={`inline-block w-2 h-2 rounded-full ${hasError ? 'bg-red-500' : 'bg-green-500'}`}
-          />
-          <span className="font-semibold">{call.name}</span>
-          <span className="text-foreground/50">{call.durationMs}ms</span>
-        </span>
-        <span
-          className={`inline-block px-2 py-0.5 rounded border ${
-            hasError
-              ? 'bg-red-500/10 text-red-700 border-red-500/30'
-              : 'bg-green-500/10 text-green-700 border-green-500/30'
-          }`}
-        >
-          {hasError ? 'error' : 'ok'}
-        </span>
-      </button>
-      {open && (
-        <div className="px-3 py-2 bg-background space-y-2">
-          <div>
-            <div className="text-foreground/50 mb-1">args</div>
-            <pre className="whitespace-pre-wrap break-all">
-              {JSON.stringify(call.args, null, 2)}
-            </pre>
-          </div>
-          <div>
-            <div className="text-foreground/50 mb-1">{hasError ? 'error' : 'result'}</div>
-            <pre className="whitespace-pre-wrap break-all">
-              {call.error ?? JSON.stringify(call.result, null, 2)}
-            </pre>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

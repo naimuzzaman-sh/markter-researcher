@@ -7,6 +7,7 @@ import { errorHandler } from './middleware/error-handler';
 import { createAuthMiddleware, type AuthVariables } from './middleware/auth';
 import { healthRoute } from './routes/health';
 import { createChatRoute } from './routes/chat';
+import { createRunToolRoute } from './routes/run-tool';
 import { createMcpRoute } from './routes/mcp';
 import { createBriefsPublicRoute } from './routes/briefs-public';
 import { createCallsRoute } from './routes/calls';
@@ -26,7 +27,8 @@ export type AppDeps = {
  * - `/auth/refresh` — public
  * - `/auth/device/authorize`, `/auth/device/deny` — Supabase JWT required
  * - `/mcp` — auth handled per-session inside the route (device-flow UX)
- * - `/chat` — Supabase JWT required
+ * - `/chat` — Supabase JWT required (LLM-driven, free-form messages)
+ * - `/run-tool` — Supabase JWT required (deterministic, pill-click tool execution)
  *
  * Middleware is applied per-path (never via `sub.use('*')` on a root-mounted
  * subapp — that would leak auth onto unrelated routes).
@@ -45,12 +47,15 @@ export function createApp(deps: AppDeps) {
   app.route('/', createAuthRoute(deps));
   app.route('/', createMcpRoute(deps));
 
-  // /chat — scope auth to this exact path.
+  // Authed routes — scope auth to specific paths so mounting at '/' doesn't
+  // leak the middleware onto unrelated outer-app routes.
   const auth = createAuthMiddleware(deps.supabase);
-  const chatSub = new Hono<{ Variables: AuthVariables }>();
-  chatSub.use('/chat', auth);
-  chatSub.route('/', createChatRoute(deps));
-  app.route('/', chatSub);
+  const authedSub = new Hono<{ Variables: AuthVariables }>();
+  authedSub.use('/chat', auth);
+  authedSub.use('/run-tool', auth);
+  authedSub.route('/', createChatRoute(deps));
+  authedSub.route('/', createRunToolRoute(deps));
+  app.route('/', authedSub);
 
   return app;
 }
