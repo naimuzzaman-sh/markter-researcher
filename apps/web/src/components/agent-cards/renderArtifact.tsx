@@ -6,6 +6,7 @@ import { CandidateList } from './CandidateList';
 import { CandidateDetail } from './CandidateDetail';
 import { ContactList } from './ContactList';
 import { ContactDetail } from './ContactDetail';
+import { Dashboard } from './Dashboard';
 import { InterviewList } from './InterviewList';
 import { InterviewDetail } from './InterviewDetail';
 import { JobStatus } from './JobStatus';
@@ -46,6 +47,8 @@ export function renderArtifact(
       return <InterviewDetail {...props} />;
     case 'job.status':
       return <JobStatus {...props} />;
+    case 'dashboard':
+      return <Dashboard {...props} />;
     default: {
       // Exhaustiveness: when a new ArtifactType lands and a renderer is
       // missed, TypeScript flags it here.

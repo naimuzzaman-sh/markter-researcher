@@ -102,6 +102,24 @@ export function replyForArtifact(artifact: Artifact): string {
           return `Job updated${suffix}.`;
       }
     }
+    case 'dashboard': {
+      if (data.empty) return "Welcome — let's start with your first brief.";
+      const counts = (data.counts ?? {}) as Record<string, unknown>;
+      const briefs = typeof counts.briefs === 'number' ? counts.briefs : 0;
+      const pendingByBrief = Array.isArray(data.pendingByBrief)
+        ? (data.pendingByBrief as Array<{ count?: unknown }>)
+        : [];
+      const pending = pendingByBrief.reduce(
+        (sum, p) => sum + (typeof p.count === 'number' ? p.count : 0),
+        0,
+      );
+      if (pending > 0) {
+        const word = pending === 1 ? 'candidate' : 'candidates';
+        return `Welcome back. ${pending} ${word} waiting on your review.`;
+      }
+      const briefWord = briefs === 1 ? 'brief' : 'briefs';
+      return `Welcome back. ${briefs} ${briefWord} in your workspace — all caught up.`;
+    }
     default: {
       const _exhaustive: never = artifact.type;
       void _exhaustive;

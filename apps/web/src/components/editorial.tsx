@@ -68,7 +68,7 @@ function AuthBadge() {
       <button
         type="button"
         onClick={handleSignOut}
-        className="font-mono text-[10px] tracking-[0.2em] uppercase text-foreground/70 hover:text-foreground underline-offset-4 hover:underline"
+        className="font-mono text-[10px] tracking-[0.2em] uppercase text-foreground/70 cursor-pointer hover:text-foreground underline-offset-4 hover:underline"
       >
         Sign out
       </button>

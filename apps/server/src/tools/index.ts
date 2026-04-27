@@ -15,6 +15,7 @@ import { rejectCandidateTool } from './reject-candidate';
 import { inviteCandidateTool } from './invite-candidate';
 import { listContactsTool } from './list-contacts';
 import { getContactTool } from './get-contact';
+import { getDashboardTool } from './get-dashboard';
 
 /**
  * Central tool registry. Both the /chat agent loop and the /mcp/sse MCP
@@ -39,6 +40,7 @@ export const tools: ToolRegistry = {
   [inviteCandidateTool.name]: inviteCandidateTool,
   [listContactsTool.name]: listContactsTool,
   [getContactTool.name]: getContactTool,
+  [getDashboardTool.name]: getDashboardTool,
 } as const;
 
 export type { Tool, ToolCtx, ToolRegistry } from './types';

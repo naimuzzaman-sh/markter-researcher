@@ -3,6 +3,7 @@ import { ActionPill } from './ActionPill';
 import { StatusPill } from './StatusPill';
 import { SentimentPill } from './SentimentPill';
 import { formatRelativeTime } from './format-relative-time';
+import { formatDuration } from './format-duration';
 import type { CardRendererProps } from './types';
 
 type InterviewListItem = {
@@ -35,13 +36,6 @@ function unpack(result: InterviewListResult): {
     briefId: result.briefId,
     briefName: result.briefName,
   };
-}
-
-function formatDuration(secs: number | null): string {
-  if (secs == null) return '';
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${m}m ${String(s).padStart(2, '0')}s`;
 }
 
 export function InterviewList({ result, onAction }: CardRendererProps) {

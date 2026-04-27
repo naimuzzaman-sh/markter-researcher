@@ -26,7 +26,8 @@ export type ArtifactType =
   | 'contact.detail'
   | 'interview.list'
   | 'interview.detail'
-  | 'job.status';
+  | 'job.status'
+  | 'dashboard';
 
 export type Artifact = {
   type: ArtifactType;
@@ -71,6 +72,7 @@ const TOOL_TO_ARTIFACT_TYPE: Record<string, ArtifactType> = {
   get_interview: 'interview.detail',
   find_candidates: 'job.status',
   get_job_status: 'job.status',
+  get_dashboard: 'dashboard',
 };
 
 export function pickArtifact(toolCalls: ToolCallRecord[]): Artifact | null {
@@ -198,6 +200,41 @@ export function artifactToRef(artifact: Artifact): ArtifactRef {
       const briefName = pickString(obj?.briefName);
       if (jobId) entities.push({ kind: 'job', id: jobId });
       if (briefId) entities.push({ kind: 'brief', id: briefId, name: briefName });
+      break;
+    }
+    case 'dashboard': {
+      // Capture every brief + interview the dashboard surfaces so the
+      // agent can resolve subsequent name-based references without a
+      // re-list (e.g. user types "approve Tania" right after seeing the
+      // dashboard's recent-interviews row).
+      const obj = pickObject(data) ?? {};
+      const recentBriefs = Array.isArray(obj.recentBriefs)
+        ? (obj.recentBriefs as unknown[])
+        : [];
+      for (const raw of recentBriefs) {
+        const item = pickObject(raw);
+        const id = pickString(item?.briefId);
+        const name = pickString(item?.productName);
+        if (id) entities.push({ kind: 'brief', id, name });
+      }
+      const pendingByBrief = Array.isArray(obj.pendingByBrief)
+        ? (obj.pendingByBrief as unknown[])
+        : [];
+      for (const raw of pendingByBrief) {
+        const item = pickObject(raw);
+        const id = pickString(item?.briefId);
+        const name = pickString(item?.briefName);
+        if (id) entities.push({ kind: 'brief', id, name });
+      }
+      const recentInterviews = Array.isArray(obj.recentInterviews)
+        ? (obj.recentInterviews as unknown[])
+        : [];
+      for (const raw of recentInterviews) {
+        const item = pickObject(raw);
+        const id = pickString(item?.interviewId);
+        const name = pickString(item?.contactName);
+        if (id) entities.push({ kind: 'interview', id, name });
+      }
       break;
     }
     default: {

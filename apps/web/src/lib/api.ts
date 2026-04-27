@@ -166,7 +166,8 @@ type ArtifactType =
   | 'contact.detail'
   | 'interview.list'
   | 'interview.detail'
-  | 'job.status';
+  | 'job.status'
+  | 'dashboard';
 
 type Artifact = {
   type: ArtifactType;

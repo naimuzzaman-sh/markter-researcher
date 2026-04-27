@@ -4,6 +4,7 @@ import { Panel } from './Panel';
 import { ActionPill } from './ActionPill';
 import { StatusPill } from './StatusPill';
 import { SentimentPill } from './SentimentPill';
+import { formatDuration } from './format-duration';
 import type { CardRendererProps } from './types';
 
 type InterviewDetailResult = {
@@ -17,13 +18,6 @@ type InterviewDetailResult = {
   transcript: Array<{ role: 'user' | 'agent'; message: string; timeInCallSecs: number }>;
   analysis: CallAnalysis | null;
 };
-
-function formatDuration(secs: number | null): string {
-  if (secs == null) return '';
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return `${m}m ${String(s).padStart(2, '0')}s`;
-}
 
 export function InterviewDetail({ result, onAction }: CardRendererProps) {
   const iv = result as InterviewDetailResult;

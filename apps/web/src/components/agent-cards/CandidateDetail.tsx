@@ -180,31 +180,14 @@ function renderActions(
         </>
       );
     case 'contacted':
-      return (
-        <>
-          <ActionPill
-            variant="solid"
-            action={{ kind: 'prompt', text: `Mark ${name} as scheduled` }}
-            onAction={onAction}
-          >
-            Mark scheduled
-          </ActionPill>
-          <ActionPill variant="danger" action={rejectAction} onAction={onAction}>
-            Reject
-          </ActionPill>
-          {always}
-        </>
-      );
     case 'scheduled':
+      // No `Mark scheduled` / `Mark interviewed` pills — they were
+      // prompt-only with no backing tool. The `?cid=` URL auto-flips
+      // status to `interviewed` when the candidate completes their call,
+      // so there's no useful manual transition between contacted →
+      // scheduled → interviewed for now. Reject stays as an escape hatch.
       return (
         <>
-          <ActionPill
-            variant="solid"
-            action={{ kind: 'prompt', text: `Mark ${name} as interviewed` }}
-            onAction={onAction}
-          >
-            Mark interviewed
-          </ActionPill>
           <ActionPill variant="danger" action={rejectAction} onAction={onAction}>
             Reject
           </ActionPill>

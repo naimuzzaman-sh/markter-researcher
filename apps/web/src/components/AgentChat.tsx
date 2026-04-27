@@ -23,14 +23,10 @@ type Turn = {
 
 type AgentChatProps = {
   mode?: "universal" | "brief-setup";
-  /** Intro paragraph shown above the first message (Lead / Prologue). */
-  greeting?: string;
   /** Masthead right-hand label — e.g. "Pre-brief", "Assistant". */
   statusLabel?: string;
   /** Masthead kicker — e.g. "Issue № 001 — Assistant". */
   issueLabel?: string;
-  /** Prologue kicker — e.g. "Prologue", "Brief setup". */
-  leadKicker?: string;
 };
 
 /**
@@ -41,16 +37,17 @@ type AgentChatProps = {
  */
 export default function AgentChat({
   mode = "universal",
-  greeting = "Ask me anything — I'll list briefs, find candidates, inspect interviews, and more.",
   statusLabel = "Assistant",
   issueLabel = "Issue № 001 — Assistant",
-  leadKicker = "Prologue",
 }: AgentChatProps) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Guards the auto-fire dashboard call against React 18 StrictMode's
+  // double-invoke and any stray remounts. One fetch per logical mount.
+  const dashboardFiredRef = useRef(false);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -62,6 +59,42 @@ export default function AgentChat({
     });
     return () => cancelAnimationFrame(raf);
   }, [turns, isThinking]);
+
+  // First-turn orientation: fire `get_dashboard` on mount so the user
+  // lands on a live "what's going on" card instead of an empty chat.
+  // Universal mode only — brief-setup mode is its own focused flow.
+  useEffect(() => {
+    if (mode !== "universal") return;
+    if (dashboardFiredRef.current) return;
+    dashboardFiredRef.current = true;
+    let cancelled = false;
+    (async () => {
+      setIsThinking(true);
+      try {
+        const response = await runTool("get_dashboard", {});
+        if (cancelled) return;
+        setTurns([
+          {
+            role: "assistant",
+            content: response.reply,
+            artifact: response.artifact,
+            artifactRef: response.artifactRef,
+          },
+        ]);
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load dashboard",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsThinking(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
 
   // Free-typed messages and prompt-style pill actions: route through the
   // LLM at /chat. Wire messages preserve `artifactRef` on assistant turns
@@ -204,7 +237,7 @@ export default function AgentChat({
               className="font-serif text-2xl mt-1 tracking-tight"
               style={{ fontVariationSettings: "'opsz' 36" }}
             >
-              The Interview Journal
+              Mirrars
             </h1>
           </div>
           <div className="flex items-baseline gap-4">
@@ -220,9 +253,7 @@ export default function AgentChat({
           2 or 3 list items per row without horizontal scrolling. Prose
           paragraphs are clamped narrower inside MessageRow. */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-12 space-y-10">
-          <Lead kicker={leadKicker} body={greeting} />
-
+        <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
           {turns.map((t, i) => (
             <MessageRow key={i} turn={t} index={i} onAction={handleAction} />
           ))}
@@ -263,23 +294,6 @@ export default function AgentChat({
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Lead({ kicker, body }: { kicker: string; body: string }) {
-  return (
-    <div className="space-y-3 pb-4">
-      <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent">
-        {kicker}
-      </div>
-      <p
-        className="font-serif text-xl leading-snug text-foreground max-w-xl"
-        style={{ fontVariationSettings: "'opsz' 24" }}
-      >
-        {body}
-      </p>
-      <div className="hairline w-24 mt-6" />
     </div>
   );
 }

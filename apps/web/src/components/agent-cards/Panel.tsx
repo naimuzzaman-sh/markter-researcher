@@ -4,7 +4,7 @@ type Variant = 'default' | 'tight' | 'error' | 'empty';
 
 type Props = {
   kicker: ReactNode;
-  title: ReactNode;
+  title?: ReactNode;
   subtitle?: ReactNode;
   children?: ReactNode;
   actions?: ReactNode;
@@ -87,16 +87,18 @@ export function Panel({
       <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent">
         {kicker}
       </div>
-      <h2
-        className="font-serif text-2xl mt-1 leading-tight tracking-tight"
-        style={{ fontVariationSettings: "'opsz' 36" }}
-      >
-        {title}
-      </h2>
+      {title && (
+        <h2
+          className="font-serif text-2xl mt-1 leading-tight tracking-tight"
+          style={{ fontVariationSettings: "'opsz' 36" }}
+        >
+          {title}
+        </h2>
+      )}
       {subtitle && (
         <p className="font-serif italic text-muted-foreground text-base mt-1">{subtitle}</p>
       )}
-      {children && <div className="mt-4">{children}</div>}
+      {children && <div className={title || subtitle ? 'mt-4' : 'mt-3'}>{children}</div>}
       {actions && (
         // Sticky to the bottom of the chat scroll viewport so the user can
         // act on long detail panels (briefs with many questions, interviews
