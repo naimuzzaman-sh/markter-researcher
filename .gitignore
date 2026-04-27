@@ -8,3 +8,4 @@ build/
 .turbo/
 coverage/
 .DS_Store
+.superpowers/
