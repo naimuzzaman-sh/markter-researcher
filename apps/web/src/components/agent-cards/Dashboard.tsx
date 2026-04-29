@@ -45,7 +45,7 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
       <Panel
         variant="tight"
         kicker="WELCOME"
-        title="Welcome to Mirrars"
+        title="Welcome to Mirars"
         subtitle="Research interviews on autopilot."
         actions={
           <ActionPill

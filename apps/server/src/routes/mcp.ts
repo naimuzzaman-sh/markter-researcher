@@ -8,6 +8,7 @@ import type { Config } from '../config';
 import type { Logger } from '../lib/logger';
 import type { ZodRawShape } from 'zod';
 import { forgetSession, resolveAuth, waitForAuth } from '../lib/auth-flow';
+import { MCP_INSTRUCTIONS } from '../lib/mcp-instructions';
 import { tools as toolRegistry } from '../tools/index';
 import type { Tool } from '../tools/types';
 
@@ -60,11 +61,8 @@ export function createMcpRoute(deps: {
     });
 
     const server = new McpServer(
-      { name: 'mirrars', version: '0.1.0' },
-      {
-        instructions:
-          "Market researcher tools. On first use you'll get a URL to authorize in your browser — open it, click Approve, then retry the tool.",
-      },
+      { name: 'mirars', version: '0.1.0' },
+      { instructions: MCP_INSTRUCTIONS },
     );
 
     for (const tool of Object.values(toolRegistry) as Tool[]) {
@@ -151,7 +149,7 @@ export function createMcpRoute(deps: {
                   type: 'resource_link' as const,
                   uri: auth.verificationUri,
                   name: `Authorize (${auth.userCode})`,
-                  description: `Opens the Mirrars authorize page. Verification code: ${auth.userCode}`,
+                  description: `Opens the Mirars authorize page. Verification code: ${auth.userCode}`,
                 },
               ],
             };

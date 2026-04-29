@@ -233,7 +233,7 @@ export default function AgentChat({
               className="font-serif text-2xl mt-1 tracking-tight"
               style={{ fontVariationSettings: "'opsz' 36" }}
             >
-              Mirrars
+              Mirars
             </h1>
           </div>
           <div className="flex items-baseline gap-4">
