@@ -4,23 +4,23 @@
  *
  * Flow:
  *   1. Load brief by id (ownership already verified at enqueue time)
- *   2. Build query from brief.researchContext.product.targetAudience + extra
- *   3. EXA search restricted to linkedin.com
- *   4. For each /in/ profile result:
- *        - parse name/title/company from the EXA title
- *        - embed "name + title + company + text" via OpenAI
- *        - upsert contact by (owner_id, linkedin_url)
- *        - insert brief_candidate (status=pending_review, source=discovery)
- *   5. Return summary { candidateCount, skipped, errors, errorSamples, tokens }
+ *   2. Build a search query from the brief's research context
+ *   3. EXA `category: 'linkedin profile'` + highlights query = relevant
+ *      person profiles + per-result "why-this-match" excerpts
+ *   4. Prefer Exa's structured `author` for the contact name; fall back
+ *      to the legacy title regex (and finally the URL slug) when missing
+ *   5. Batch-embed all profile docs in a single OpenAI call
+ *   6. Bulk-upsert contacts, then bulk-insert brief_candidate rows
+ *   7. Return summary { candidateCount, skipped, errors, errorSamples, tokens }
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from '../config';
 import { getBriefById } from '../db/briefs';
-import { upsertContactByLinkedIn } from '../db/contacts';
-import { insertCandidate } from '../db/candidates';
+import { bulkUpsertContactsByLinkedIn } from '../db/contacts';
+import { insertCandidates } from '../db/candidates';
 import { exaSearch, type ExaSearchResult } from '../external/exa';
-import { embedText } from '../external/openai';
+import { embedTexts } from '../external/openai';
 import { AppError } from '../lib/errors';
 
 type DiscoveryInput = {
@@ -42,8 +42,11 @@ const MAX_ERRORS_CAPTURED = 5;
 type Parsed = { name: string; title: string | null; companyName: string | null };
 
 /**
- * Heuristics, ordered by reliability:
+ * Title-parsing fallback used when Exa doesn't return a structured
+ * `author`. With `category: 'linkedin profile'`, Exa's `author` is the
+ * person's display name in most cases, so this is the unhappy path.
  *
+ * Heuristics, ordered by reliability:
  *   1. Title is missing → derive a rough name from the URL slug.
  *   2. Standard LinkedIn dash-format: `"Name - Title at Company"`.
  *   3. Pipe-separated headline: `"Name | Empower PMs | Forbes | …"` —
@@ -55,8 +58,7 @@ type Parsed = { name: string; title: string | null; companyName: string | null }
  * Long stretches in any single segment (>40 chars) are likely the
  * profile headline rather than a person's name — when that happens for
  * the first segment we fall back to the URL slug to avoid stuffing the
- * whole headline into `contacts.name` (the bug that necessitated
- * client-side stripping).
+ * whole headline into `contacts.name`.
  */
 function parseLinkedInTitle(title: string | null, fallbackUrl: string): Parsed {
   const fallbackName = (() => {
@@ -118,46 +120,36 @@ function parseLinkedInTitle(title: string | null, fallbackUrl: string): Parsed {
   return { name: fallbackName, title: null, companyName: null };
 }
 
-async function processResult(
-  supabase: SupabaseClient,
-  config: Config,
-  ownerId: string,
-  briefId: string,
-  result: ExaSearchResult,
-): Promise<{ added: boolean; skipped: boolean; tokens: number }> {
-  if (!/linkedin\.com\/in\//i.test(result.url)) {
-    return { added: false, skipped: true, tokens: 0 };
+/**
+ * Resolve the canonical fields for a profile result. Prefers Exa's
+ * structured `author` (populated by `category: 'linkedin profile'`) for
+ * the name; falls through to the legacy title parser otherwise.
+ */
+function extractProfile(result: ExaSearchResult): Parsed {
+  const fromTitle = parseLinkedInTitle(result.title, result.url);
+  if (result.author && result.author.trim()) {
+    const name = result.author.trim();
+    // Trust Exa's author for the name, but keep title/company from the
+    // title parse — Exa rarely returns those structured.
+    return { name, title: fromTitle.title, companyName: fromTitle.companyName };
   }
+  return fromTitle;
+}
 
-  const parsed = parseLinkedInTitle(result.title, result.url);
-  const doc = [parsed.name, parsed.title ?? '', parsed.companyName ?? '', result.text?.slice(0, 500) ?? '']
-    .filter(Boolean)
-    .join(' — ');
-
-  const { embedding, tokens } = await embedText(config.openaiApiKey, doc);
-
-  const contact = await upsertContactByLinkedIn(supabase, {
-    ownerId,
-    linkedinUrl: result.url,
-    name: parsed.name,
-    title: parsed.title,
-    companyName: parsed.companyName,
-    companyDomain: null,
-    email: null,
-    location: null,
-    profileJson: { rawTitle: result.title, snippet: result.text, exaScore: result.score },
-    embedding,
-  });
-
-  await insertCandidate(supabase, {
-    briefId,
-    contactId: contact.id,
-    source: 'discovery',
-    matchScore: result.score,
-    status: 'pending_review',
-  });
-
-  return { added: true, skipped: false, tokens };
+/**
+ * Compose the document we embed for each contact. Includes the highlight
+ * excerpts (when available) so the embedding reflects the parts of the
+ * profile that actually matched the brief — not just the page-wide
+ * snippet.
+ */
+function buildEmbedDoc(parsed: Parsed, result: ExaSearchResult): string {
+  const parts = [
+    parsed.name,
+    parsed.title ?? '',
+    parsed.companyName ?? '',
+    result.highlights.join(' ') || result.text?.slice(0, 500) || '',
+  ];
+  return parts.filter(Boolean).join(' — ');
 }
 
 export async function runDiscovery(
@@ -169,36 +161,102 @@ export async function runDiscovery(
   const brief = await getBriefById(supabase, input.briefId);
   if (!brief) throw new AppError('not_found', 'Brief not found');
 
-  const baseQuery = `${brief.researchContext.product.targetAudience} ${brief.researchContext.company.industry}`.trim();
-  const query = input.extraCriteria ? `${baseQuery} ${input.extraCriteria}` : baseQuery;
+  // Build the search query from the brief's full ICP context, not just
+  // a two-token concat. Neural retrieval rewards prose-like queries.
+  const ctx = brief.researchContext;
+  const queryParts = [
+    ctx.product?.targetAudience,
+    ctx.company?.industry,
+    ctx.product?.description,
+    input.extraCriteria,
+  ].filter(Boolean) as string[];
+  const query = queryParts.join('. ');
+  // Highlights query = a tighter "who am I looking for" phrase. Exa
+  // uses it to choose which sentences to surface as the match excerpts.
+  const highlightsQuery =
+    [ctx.product?.targetAudience, input.extraCriteria].filter(Boolean).join(' ') ||
+    query;
 
   const results = await exaSearch(config.exaApiKey, {
     query,
     numResults: input.limit,
     includeDomains: ['linkedin.com'],
+    category: 'linkedin profile',
+    livecrawl: 'preferred',
     includeText: true,
+    highlights: { numSentences: 2, highlightsPerUrl: 2, query: highlightsQuery },
   });
 
-  let candidateCount = 0;
-  let skipped = 0;
-  let errors = 0;
-  let tokensUsed = 0;
-  const errorSamples: string[] = [];
+  // Filter to person profiles only, even though category should already
+  // restrict — defensive against indexer drift.
+  const profiles = results.filter((r) => /linkedin\.com\/in\//i.test(r.url));
+  const skipped = results.length - profiles.length;
 
-  for (const result of results) {
-    try {
-      const r = await processResult(supabase, config, ownerId, input.briefId, result);
-      if (r.added) candidateCount += 1;
-      if (r.skipped) skipped += 1;
-      tokensUsed += r.tokens;
-    } catch (err) {
-      errors += 1;
-      const message = err instanceof Error ? err.message : String(err);
-      if (errorSamples.length < MAX_ERRORS_CAPTURED) {
-        errorSamples.push(`${result.url}: ${message}`.slice(0, 500));
-      }
-    }
+  if (profiles.length === 0) {
+    return { candidateCount: 0, skipped, errors: 0, errorSamples: [], tokensUsed: 0 };
   }
 
-  return { candidateCount, skipped, errors, errorSamples, tokensUsed };
+  // Parse + build embed docs in lockstep so vectors line up by index.
+  const parsedList = profiles.map(extractProfile);
+  const docs = profiles.map((r, i) => buildEmbedDoc(parsedList[i], r));
+
+  // Single batched embedding call replaces N round-trips.
+  const { embeddings, tokens: tokensUsed } = await embedTexts(config.openaiApiKey, docs);
+
+  // Bulk-upsert all contacts in one round-trip; result map is keyed by
+  // linkedin_url so we don't depend on PostgREST result ordering.
+  const upsertInputs = profiles.map((result, i) => ({
+    ownerId,
+    linkedinUrl: result.url,
+    name: parsedList[i].name,
+    title: parsedList[i].title,
+    companyName: parsedList[i].companyName,
+    companyDomain: null,
+    email: null,
+    location: null,
+    profileJson: {
+      rawTitle: result.title,
+      snippet: result.text,
+      highlights: result.highlights,
+      highlightsQuery,
+      exaScore: result.score,
+      publishedDate: result.publishedDate,
+    },
+    embedding: embeddings[i],
+  }));
+  const contactsByUrl = await bulkUpsertContactsByLinkedIn(supabase, upsertInputs);
+
+  // Build candidate inserts, dropping any rows whose contact didn't come
+  // back from the upsert (defensive — shouldn't happen). Anything dropped
+  // counts as an error so the job report stays honest.
+  const candidateInputs: Parameters<typeof insertCandidates>[1] = [];
+  let errors = 0;
+  const errorSamples: string[] = [];
+  for (const result of profiles) {
+    const contact = contactsByUrl.get(result.url);
+    if (!contact) {
+      errors += 1;
+      if (errorSamples.length < MAX_ERRORS_CAPTURED) {
+        errorSamples.push(`${result.url}: contact upsert returned no row`);
+      }
+      continue;
+    }
+    candidateInputs.push({
+      briefId: input.briefId,
+      contactId: contact.id,
+      source: 'discovery',
+      matchScore: result.score,
+      status: 'pending_review',
+    });
+  }
+
+  await insertCandidates(supabase, candidateInputs);
+
+  return {
+    candidateCount: candidateInputs.length,
+    skipped,
+    errors,
+    errorSamples,
+    tokensUsed,
+  };
 }

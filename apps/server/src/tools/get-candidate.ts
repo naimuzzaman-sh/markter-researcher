@@ -8,6 +8,19 @@ import type { Tool } from './types';
 
 const inputSchema = z.object({ candidateId: z.string().uuid() });
 
+/**
+ * Pull the per-query relevance excerpts that the discovery flow stashed
+ * on `contacts.profile_json.highlights`. Defensive narrowing — older
+ * rows may have any shape, and we never want a candidate detail to
+ * crash because legacy data lacks this field.
+ */
+function extractHighlights(profileJson: unknown): string[] {
+  if (!profileJson || typeof profileJson !== 'object') return [];
+  const h = (profileJson as { highlights?: unknown }).highlights;
+  if (!Array.isArray(h)) return [];
+  return h.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+}
+
 export const getCandidateTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'get_candidate',
   description:
@@ -51,6 +64,10 @@ export const getCandidateTool: Tool<z.infer<typeof inputSchema>> = {
             researchNotes: contact.researchNotes,
           }
         : null,
+      // "Why this candidate matches" excerpts pulled from the discovery
+      // job (Exa highlights). Empty array when missing — UI treats that
+      // as "no excerpts to render".
+      highlights: contact ? extractHighlights(contact.profileJson) : [],
     };
   },
 };

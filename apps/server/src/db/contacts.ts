@@ -83,6 +83,45 @@ export async function upsertContactByLinkedIn(
   return rowToContact(data as ContactRow);
 }
 
+/**
+ * Bulk variant of `upsertContactByLinkedIn`. Single round-trip for the
+ * discovery loop. Returns contacts indexed by `linkedinUrl` so callers
+ * can rejoin without relying on PostgREST result ordering — which is
+ * usually input-preserving but not contractually guaranteed for upserts
+ * with conflict resolution.
+ *
+ * Empty input → empty Map (no wasted call).
+ */
+export async function bulkUpsertContactsByLinkedIn(
+  client: SupabaseClient,
+  inputs: UpsertInput[],
+): Promise<Map<string, Contact>> {
+  if (inputs.length === 0) return new Map();
+  const rows = inputs.map((input) => ({
+    owner_id: input.ownerId,
+    linkedin_url: input.linkedinUrl,
+    name: input.name,
+    title: input.title,
+    company_name: input.companyName,
+    company_domain: input.companyDomain,
+    email: input.email,
+    location: input.location,
+    profile_json: input.profileJson,
+    embedding: formatVectorForInsert(input.embedding),
+  }));
+  const { data, error } = await client
+    .from('contacts')
+    .upsert(rows, { onConflict: 'owner_id,linkedin_url' })
+    .select(COLS);
+
+  if (error) throw new AppError('upstream', `Failed to bulk-upsert contacts: ${error.message}`);
+  const map = new Map<string, Contact>();
+  for (const row of (data ?? []) as ContactRow[]) {
+    map.set(row.linkedin_url ?? '', rowToContact(row));
+  }
+  return map;
+}
+
 export async function getContactById(
   client: SupabaseClient,
   id: string,

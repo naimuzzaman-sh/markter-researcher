@@ -14,7 +14,15 @@ describe('exaSearch', () => {
       ok: true,
       json: async () => ({
         results: [
-          { title: 'Ada', url: 'https://linkedin.com/in/ada', text: 'CFO', score: 0.9 },
+          {
+            title: 'Ada',
+            url: 'https://linkedin.com/in/ada',
+            text: 'CFO',
+            author: 'Ada Lovelace',
+            highlights: ['Led a 12-person finance team.'],
+            publishedDate: '2024-09-01',
+            score: 0.9,
+          },
         ],
       }),
     });
@@ -33,7 +41,36 @@ describe('exaSearch', () => {
     expect(body.numResults).toBe(5);
     expect(body.includeDomains).toEqual(['linkedin.com']);
     expect(results).toEqual([
-      { title: 'Ada', url: 'https://linkedin.com/in/ada', text: 'CFO', author: null, score: 0.9 },
+      {
+        title: 'Ada',
+        url: 'https://linkedin.com/in/ada',
+        text: 'CFO',
+        author: 'Ada Lovelace',
+        highlights: ['Led a 12-person finance team.'],
+        publishedDate: '2024-09-01',
+        score: 0.9,
+      },
+    ]);
+  });
+
+  it('defaults missing optional result fields to null/empty', async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [{ url: 'https://linkedin.com/in/x' }],
+      }),
+    });
+    const results = await exaSearch('k', { query: 'x' });
+    expect(results).toEqual([
+      {
+        title: null,
+        url: 'https://linkedin.com/in/x',
+        text: null,
+        author: null,
+        highlights: [],
+        publishedDate: null,
+        score: null,
+      },
     ]);
   });
 
@@ -47,6 +84,22 @@ describe('exaSearch', () => {
     fetchSpy.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
     await exaSearch('k', { query: 'x', includeText: true });
     expect(JSON.parse(fetchSpy.mock.calls[0][1].body).contents).toEqual({ text: true });
+  });
+
+  it('forwards category, highlights, livecrawl', async () => {
+    fetchSpy.mockResolvedValue({ ok: true, json: async () => ({ results: [] }) });
+    await exaSearch('k', {
+      query: 'x',
+      category: 'linkedin profile',
+      livecrawl: 'preferred',
+      highlights: { numSentences: 2, highlightsPerUrl: 2, query: 'CFOs' },
+    });
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    expect(body.category).toBe('linkedin profile');
+    expect(body.contents).toEqual({
+      highlights: { numSentences: 2, highlightsPerUrl: 2, query: 'CFOs' },
+      livecrawl: 'preferred',
+    });
   });
 
   it('throws upstream on non-2xx', async () => {

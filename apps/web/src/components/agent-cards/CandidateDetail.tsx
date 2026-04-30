@@ -36,6 +36,8 @@ type CandidateDetailResult = {
     linkedinUrl: string | null;
     researchNotes?: string | null;
   };
+  /** Per-query relevance excerpts from discovery — "why this match". */
+  highlights?: string[];
 };
 
 export function CandidateDetail({ result, onAction }: CardRendererProps) {
@@ -67,6 +69,21 @@ export function CandidateDetail({ result, onAction }: CardRendererProps) {
           ['DISCOVERED', formatRelativeTime(c.createdAt)],
         ]}
       />
+      {c.highlights && c.highlights.length > 0 && (
+        <div className="mt-4">
+          <FieldLabel>WHY THIS MATCH</FieldLabel>
+          <ul className="mt-1.5 space-y-1.5">
+            {c.highlights.map((h, i) => (
+              <li
+                key={i}
+                className="font-serif italic text-base leading-relaxed text-foreground/85 pl-3 border-l-2 border-accent/40"
+              >
+                "{h}"
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {c.contact.researchNotes && (
         <Field label="RESEARCH NOTES">{c.contact.researchNotes}</Field>
       )}

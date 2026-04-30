@@ -8,6 +8,7 @@ import {
 } from "@/lib/api";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { renderArtifact } from "./agent-cards";
+import { AssistantMarkdown } from "./AssistantMarkdown";
 import { AuthBadge } from "./editorial";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
@@ -319,14 +320,7 @@ function MessageRow({
 
       {isAssistant ? (
         <>
-          {turn.content && (
-            <p
-              className="font-serif text-lg leading-relaxed text-foreground whitespace-pre-wrap max-w-2xl"
-              style={{ fontVariationSettings: "'opsz' 18" }}
-            >
-              {turn.content}
-            </p>
-          )}
+          {turn.content && <AssistantMarkdown source={turn.content} />}
           {turn.artifact && (
             <div className="mt-4">
               {renderArtifact(turn.artifact, onAction)}

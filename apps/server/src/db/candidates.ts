@@ -68,6 +68,38 @@ export async function insertCandidate(
 }
 
 /**
+ * Bulk-insert candidates in a single round-trip. Used by the discovery
+ * flow to commit all hits at once instead of one HTTP call per result.
+ * Returns ids in input order. Empty input → no-op (avoids a wasted call).
+ */
+export async function insertCandidates(
+  client: SupabaseClient,
+  inputs: InsertInput[],
+): Promise<string[]> {
+  if (inputs.length === 0) return [];
+  const rows = inputs.map((input) => ({
+    brief_id: input.briefId,
+    contact_id: input.contactId,
+    source: input.source,
+    match_score: input.matchScore,
+    status: input.status,
+  }));
+  const { data, error } = await client
+    .from('brief_candidates')
+    .insert(rows)
+    .select('id');
+
+  if (error) throw new AppError('upstream', `Failed to insert candidates: ${error.message}`);
+  const ids = ((data ?? []) as Array<{ id: unknown }>)
+    .map((r) => (typeof r.id === 'string' ? r.id : null))
+    .filter((id): id is string => id !== null);
+  if (ids.length !== inputs.length) {
+    throw new AppError('internal', `Bulk insert returned ${ids.length} ids for ${inputs.length} rows`);
+  }
+  return ids;
+}
+
+/**
  * Fetch candidate + its brief's owner for server-side ownership enforcement.
  */
 export async function getCandidateWithOwner(

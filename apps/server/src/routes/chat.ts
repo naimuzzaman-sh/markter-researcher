@@ -32,6 +32,11 @@ const artifactRefSchema = z.object({
     'interview.list',
     'interview.detail',
     'job.status',
+    // Dashboard fires on AgentChat mount and produces an artifactRef
+    // carrying the recent briefs / pending candidates / recent
+    // interviews as scope entities. Without this enum value, the very
+    // first follow-up turn after dashboard load fails Zod validation.
+    'dashboard',
   ]),
   entities: z.array(scopeEntitySchema).default([]),
 });
