@@ -15,6 +15,7 @@ const cfg: Config = {
   geminiApiKey: 'x', exaApiKey: 'x', openaiApiKey: 'x', elevenlabsApiKey: 'x',
   elevenlabsVoiceId: 'x', elevenlabsWebhookSecret: 'x',
   resendApiKey: 'x', resendFromEmail: 'research@example.com',
+  resendWebhookSecret: '',
 };
 
 describe('listBriefsTool', () => {
@@ -26,20 +27,20 @@ describe('listBriefsTool', () => {
 
   it('defaults limit to 20', async () => {
     const { listBriefsByOwner } = await import('../db/briefs');
-    const ctx = { userId: 'u1', supabase: {} as SupabaseClient, config: cfg };
+    const ctx = { userId: 'u1', userEmail: null, supabase: {} as SupabaseClient, config: cfg };
     await listBriefsTool.execute({}, ctx);
     expect(listBriefsByOwner).toHaveBeenCalledWith(ctx.supabase, 'u1', 20);
   });
 
   it('honours custom limit', async () => {
     const { listBriefsByOwner } = await import('../db/briefs');
-    const ctx = { userId: 'u1', supabase: {} as SupabaseClient, config: cfg };
+    const ctx = { userId: 'u1', userEmail: null, supabase: {} as SupabaseClient, config: cfg };
     await listBriefsTool.execute({ limit: 5 }, ctx);
     expect(listBriefsByOwner).toHaveBeenCalledWith(ctx.supabase, 'u1', 5);
   });
 
   it('serializes dates to ISO strings in the wire shape', async () => {
-    const ctx = { userId: 'u1', supabase: {} as SupabaseClient, config: cfg };
+    const ctx = { userId: 'u1', userEmail: null, supabase: {} as SupabaseClient, config: cfg };
     const result = await listBriefsTool.execute({}, ctx);
     expect(result[0].briefId).toBe('b1');
     expect(typeof result[0].createdAt).toBe('string');

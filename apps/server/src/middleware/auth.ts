@@ -4,6 +4,12 @@ import { AppError } from '../lib/errors';
 
 export type AuthVariables = {
   userId: string;
+  /**
+   * Email from the JWT's user record. Null for phone-based or
+   * magic-link flows that don't carry an email claim. Used downstream
+   * as the Reply-To on outbound emails.
+   */
+  userEmail: string | null;
 };
 
 /**
@@ -23,18 +29,21 @@ export function createAuthMiddleware(supabase: SupabaseClient) {
     }
 
     let userId: string;
+    let userEmail: string | null = null;
     try {
       const { data, error } = await supabase.auth.getUser(token);
       if (error || !data?.user) {
         throw new AppError('unauthorized', 'Invalid or expired token');
       }
       userId = data.user.id;
+      userEmail = data.user.email ?? null;
     } catch (err) {
       if (err instanceof AppError) throw err;
       throw new AppError('unauthorized', 'Token verification failed', { cause: err });
     }
 
     c.set('userId', userId);
+    c.set('userEmail', userEmail);
     await next();
   });
 }

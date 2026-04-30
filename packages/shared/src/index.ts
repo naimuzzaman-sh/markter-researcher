@@ -56,9 +56,10 @@ export type {
 export {
   contactSchema,
   contactSummarySchema,
+  emailStatusSchema,
   EMBEDDING_DIMS,
 } from './types/contact.type';
-export type { Contact, ContactSummary } from './types/contact.type';
+export type { Contact, ContactSummary, EmailStatus } from './types/contact.type';
 
 export {
   briefCandidateSchema,

@@ -10,6 +10,14 @@ import type { Config } from '../config';
  */
 export type ToolCtx = {
   userId: string;
+  /**
+   * Researcher's email — pulled from the JWT user object on each
+   * request. Optional because phone-based / magic-link auth flows
+   * may not surface one. Used as the Reply-To header on outbound
+   * invite emails so candidates can respond directly to the human
+   * who's running the research.
+   */
+  userEmail: string | null;
   supabase: SupabaseClient;
   config: Config;
 };

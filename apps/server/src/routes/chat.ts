@@ -73,9 +73,10 @@ export function createChatRoute(deps: {
     }
 
     const userId = c.get('userId');
+    const userEmail = c.get('userEmail');
 
     const result = await runAgent({
-      ctx: { userId, supabase: deps.supabase, config: deps.config },
+      ctx: { userId, userEmail, supabase: deps.supabase, config: deps.config },
       systemPrompt: SYSTEM_PROMPT,
       messages: parsed.data.messages as ChatTurnInput[],
       logger: deps.logger.child({ userId, route: 'chat' }),

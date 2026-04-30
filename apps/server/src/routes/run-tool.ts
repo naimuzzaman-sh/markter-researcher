@@ -44,7 +44,8 @@ export function createRunToolRoute(deps: {
     }
 
     const userId = c.get('userId');
-    const ctx = { userId, supabase: deps.supabase, config: deps.config };
+    const userEmail = c.get('userEmail');
+    const ctx = { userId, userEmail, supabase: deps.supabase, config: deps.config };
 
     let result: unknown;
     try {

@@ -15,7 +15,7 @@ const inputSchema = z.object({ candidateId: z.string().uuid() });
 export const inviteCandidateTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'invite_candidate',
   description:
-    'Send an interview invite email to a candidate via Resend. Loads the candidate, contact, and brief; constructs the candidate-tagged interview URL (`/interview/<briefId>?cid=<candidateId>`); sends a short plain-text email; flips status to `contacted`. Throws if the contact has no email on file.',
+    'Send an interview invite email to a candidate via Resend. Loads the candidate, contact, and brief; constructs the candidate-tagged interview URL (`/interview/<briefId>?cid=<candidateId>`); sends a short plain-text email with the researcher\'s email as Reply-To; flips status to `contacted`. Refuses to send if the contact has no email, has previously hard-bounced, or has marked us as spam — surfaces a clear error in those cases.',
   inputSchema,
   async execute(args, ctx) {
     // Owner-gate via candidate → brief join.
@@ -24,6 +24,21 @@ export const inviteCandidateTool: Tool<z.infer<typeof inputSchema>> = {
       throw new AppError('not_found', 'Candidate not found');
     }
     const candidate = row.candidate;
+
+    // Idempotency: candidate is already past 'approved' → don't re-send.
+    // The pill in the UI is hidden for non-approved statuses, but the
+    // chat-driven path could still re-trigger; better to short-circuit
+    // here than spam the recipient.
+    if (
+      candidate.status === 'contacted' ||
+      candidate.status === 'scheduled' ||
+      candidate.status === 'interviewed'
+    ) {
+      throw new AppError(
+        'validation',
+        `This candidate has already been invited (status: ${candidate.status}).`,
+      );
+    }
 
     const [contact, brief] = await Promise.all([
       getContactById(ctx.supabase, candidate.contactId, ctx.userId),
@@ -38,6 +53,31 @@ export const inviteCandidateTool: Tool<z.infer<typeof inputSchema>> = {
       );
     }
 
+    // Suppression: hard bounces and spam complaints are sticky. The
+    // webhook handler set this state from a prior delivery attempt,
+    // and re-sending would damage our sender reputation without
+    // delivering anything.
+    if (contact.emailStatus === 'bounced') {
+      throw new AppError(
+        'validation',
+        `Skipped — ${contact.name}'s email previously hard-bounced${
+          contact.emailStatusReason ? ` (${contact.emailStatusReason})` : ''
+        }. Update or remove the address before retrying.`,
+      );
+    }
+    if (contact.emailStatus === 'complained') {
+      throw new AppError(
+        'validation',
+        `Skipped — ${contact.name} previously marked us as spam. We won't email them again.`,
+      );
+    }
+    if (contact.emailStatus === 'unsubscribed') {
+      throw new AppError(
+        'validation',
+        `Skipped — ${contact.name} unsubscribed from research invites.`,
+      );
+    }
+
     const productName = brief?.researchContext.product?.name ?? 'a research interview';
     const interviewUrl = buildInterviewUrl(
       ctx.config.webOrigin,
@@ -48,9 +88,17 @@ export const inviteCandidateTool: Tool<z.infer<typeof inputSchema>> = {
     await sendInterviewInvite({
       apiKey: ctx.config.resendApiKey,
       from: ctx.config.resendFromEmail,
+      // Researcher's email when available (web flow); falls back to
+      // `from` so replies at least don't bounce. MCP transport
+      // currently passes null — see routes/mcp.ts.
+      replyTo: ctx.userEmail ?? ctx.config.resendFromEmail,
       to: contact.email,
       productName,
       interviewUrl,
+      // Stable per-candidate key — Resend dedupes if the user
+      // somehow triggers two sends for the same candidate within
+      // their idempotency window.
+      idempotencyKey: `invite-${candidate.id}`,
     });
 
     // Auto-flip to contacted now that the invite is out.

@@ -170,6 +170,10 @@ export function createMcpRoute(deps: {
             const parsed = tool.inputSchema.parse(args);
             const result = await tool.execute(parsed, {
               userId: auth.userId,
+              // MCP device-flow doesn't currently surface the user's
+              // email on the session; downstream tools fall back to
+              // RESEND_FROM_EMAIL for Reply-To when this is null.
+              userEmail: null,
               supabase: deps.supabase,
               config: deps.config,
             });

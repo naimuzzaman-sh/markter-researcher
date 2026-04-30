@@ -44,6 +44,7 @@ const cfg: Config = {
   elevenlabsWebhookSecret: 'x',
   resendApiKey: 'x',
   resendFromEmail: 'r@example.com',
+  resendWebhookSecret: '',
 };
 
 const supabase = {} as SupabaseClient;

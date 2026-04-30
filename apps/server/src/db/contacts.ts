@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Contact } from '@mirrars/shared';
+import type { Contact, EmailStatus } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
 import { formatVectorForInsert, parseVectorFromRow } from './pgvector';
 
@@ -16,12 +16,15 @@ type ContactRow = {
   profile_json: unknown | null;
   research_notes: string | null;
   embedding: string | number[] | null;
+  email_status: EmailStatus;
+  email_status_at: string | null;
+  email_status_reason: string | null;
   created_at: string;
   updated_at: string;
 };
 
 const COLS =
-  'id, owner_id, name, linkedin_url, title, company_name, company_domain, email, location, profile_json, research_notes, embedding, created_at, updated_at';
+  'id, owner_id, name, linkedin_url, title, company_name, company_domain, email, location, profile_json, research_notes, embedding, email_status, email_status_at, email_status_reason, created_at, updated_at';
 
 function rowToContact(row: ContactRow): Contact {
   return {
@@ -37,6 +40,9 @@ function rowToContact(row: ContactRow): Contact {
     profileJson: row.profile_json,
     researchNotes: row.research_notes,
     embedding: parseVectorFromRow(row.embedding),
+    emailStatus: row.email_status,
+    emailStatusAt: row.email_status_at ? new Date(row.email_status_at) : null,
+    emailStatusReason: row.email_status_reason,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
@@ -165,4 +171,48 @@ export async function updateContactResearchNotes(
     .update({ research_notes: notes })
     .eq('id', id);
   if (error) throw new AppError('upstream', `Failed to update research notes: ${error.message}`);
+}
+
+/**
+ * Look up contacts by email address — used by the Resend webhook to
+ * route bounce/complaint events to the right row(s). One email can
+ * legitimately appear under multiple owners (we discover the same
+ * person for different briefs across different researchers), so this
+ * returns an array.
+ */
+export async function findContactsByEmail(
+  client: SupabaseClient,
+  email: string,
+): Promise<Contact[]> {
+  const { data, error } = await client
+    .from('contacts')
+    .select(COLS)
+    .eq('email', email);
+  if (error) throw new AppError('upstream', `Failed to find contacts by email: ${error.message}`);
+  return ((data ?? []) as ContactRow[]).map(rowToContact);
+}
+
+/**
+ * Mutate the deliverability state. Webhook handler calls this for each
+ * matching contact when a bounce/complaint/delivered event arrives.
+ * Reason is the human-readable diagnostic from Resend (or null for
+ * `'delivered'`).
+ */
+export async function updateContactEmailStatus(
+  client: SupabaseClient,
+  id: string,
+  status: EmailStatus,
+  reason: string | null,
+): Promise<void> {
+  const { error } = await client
+    .from('contacts')
+    .update({
+      email_status: status,
+      email_status_at: new Date().toISOString(),
+      email_status_reason: reason,
+    })
+    .eq('id', id);
+  if (error) {
+    throw new AppError('upstream', `Failed to update email status: ${error.message}`);
+  }
 }

@@ -66,6 +66,7 @@ const TOOL_TO_ARTIFACT_TYPE: Record<string, ArtifactType> = {
   get_candidate: 'candidate.detail',
   approve_candidate: 'candidate.mutation',
   reject_candidate: 'candidate.mutation',
+  invite_candidate: 'candidate.mutation',
   list_contacts: 'contact.list',
   get_contact: 'contact.detail',
   list_interviews: 'interview.list',

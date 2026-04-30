@@ -24,6 +24,7 @@ const cfg: Config = {
   elevenlabsWebhookSecret: 's',
   resendApiKey: 'r',
   resendFromEmail: 'research@example.com',
+  resendWebhookSecret: '',
 };
 
 describe('createSupabaseClient', () => {

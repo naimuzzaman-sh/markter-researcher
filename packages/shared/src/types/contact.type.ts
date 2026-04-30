@@ -2,6 +2,15 @@ import { z } from 'zod';
 
 const EMBEDDING_DIMS = 1536;
 
+const emailStatusSchema = z.enum([
+  'unknown',
+  'delivered',
+  'bounced',
+  'complained',
+  'unsubscribed',
+]);
+type EmailStatus = z.infer<typeof emailStatusSchema>;
+
 const contactSchema = z.object({
   id: z.string().uuid(),
   ownerId: z.string().uuid(),
@@ -15,6 +24,12 @@ const contactSchema = z.object({
   profileJson: z.unknown().nullable(),
   researchNotes: z.string().nullable(),
   embedding: z.array(z.number()).length(EMBEDDING_DIMS).nullable(),
+  // Per-recipient deliverability state. Driven by the Resend webhook;
+  // `invite_candidate` short-circuits when this is `'bounced'` or
+  // `'complained'`.
+  emailStatus: emailStatusSchema,
+  emailStatusAt: z.date().nullable(),
+  emailStatusReason: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -30,5 +45,5 @@ const contactSummarySchema = z.object({
 type Contact = z.infer<typeof contactSchema>;
 type ContactSummary = z.infer<typeof contactSummarySchema>;
 
-export { contactSchema, contactSummarySchema, EMBEDDING_DIMS };
-export type { Contact, ContactSummary };
+export { contactSchema, contactSummarySchema, emailStatusSchema, EMBEDDING_DIMS };
+export type { Contact, ContactSummary, EmailStatus };

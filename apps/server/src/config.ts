@@ -22,6 +22,11 @@ const envSchema = z.object({
   RESEND_FROM_EMAIL: z
     .string()
     .min(1, 'RESEND_FROM_EMAIL required (e.g. "research@yourdomain.com")'),
+  // Optional in dev (the webhook route falls back to denying unsigned
+  // requests anyway); required in prod for the bounce/complaint handler
+  // to function. Default-empty so local stacks without a webhook
+  // configured can still boot.
+  RESEND_WEBHOOK_SECRET: z.string().default(""),
 });
 
 export type Config = {
@@ -40,6 +45,7 @@ export type Config = {
   elevenlabsWebhookSecret: string;
   resendApiKey: string;
   resendFromEmail: string;
+  resendWebhookSecret: string;
 };
 
 /**
@@ -72,5 +78,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     elevenlabsWebhookSecret: v.ELEVENLABS_WEBHOOK_SECRET,
     resendApiKey: v.RESEND_API_KEY,
     resendFromEmail: v.RESEND_FROM_EMAIL,
+    resendWebhookSecret: v.RESEND_WEBHOOK_SECRET,
   };
 }
