@@ -207,6 +207,47 @@ describe('runDiscovery', () => {
     expect(docs).toHaveLength(2);
   });
 
+  it('counts re-discovered candidates as skipped, not as new', async () => {
+    // Simulates: 2 profiles found, but one already exists in
+    // brief_candidates for this brief (Postgres unique constraint
+    // skips it). insertCandidates returns 1 id even though we asked
+    // to insert 2.
+    vi.mocked(exaSearch).mockResolvedValue([
+      {
+        url: 'https://linkedin.com/in/new',
+        title: 'New',
+        text: '',
+        author: 'New',
+        highlights: [],
+        publishedDate: null,
+        score: 0.5,
+      },
+      {
+        url: 'https://linkedin.com/in/dup',
+        title: 'Already-here',
+        text: '',
+        author: 'Dup',
+        highlights: [],
+        publishedDate: null,
+        score: 0.4,
+      },
+    ]);
+    vi.mocked(embedTexts).mockResolvedValue({
+      embeddings: [
+        [0.1],
+        [0.2],
+      ],
+      tokens: 2,
+    });
+    // Only one id comes back from the bulk insert — the other was a
+    // (brief_id, contact_id) duplicate and got silently dropped.
+    vi.mocked(insertCandidates).mockResolvedValue(['cand_new']);
+
+    const out = await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 5 });
+    expect(out.candidateCount).toBe(1);
+    expect(out.skipped).toBe(1);
+  });
+
   it('skips non-/in/ URLs and reports them in skipped count', async () => {
     vi.mocked(exaSearch).mockResolvedValue([
       {

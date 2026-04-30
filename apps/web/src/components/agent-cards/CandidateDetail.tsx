@@ -72,13 +72,17 @@ export function CandidateDetail({ result, onAction }: CardRendererProps) {
       {c.highlights && c.highlights.length > 0 && (
         <div className="mt-4">
           <FieldLabel>WHY THIS MATCH</FieldLabel>
-          <ul className="mt-1.5 space-y-1.5">
+          {/* Italic + accent rule on the left reads as a quoted excerpt
+              without literal ASCII quotes — keeps long-ish sentences
+              from looking forced. Tight `space-y-2` so multiple
+              highlights stack as a list, not a wall of prose. */}
+          <ul className="mt-1.5 space-y-2">
             {c.highlights.map((h, i) => (
               <li
                 key={i}
-                className="font-serif italic text-base leading-relaxed text-foreground/85 pl-3 border-l-2 border-accent/40"
+                className="font-serif italic text-sm leading-relaxed text-foreground/85 pl-3 border-l-2 border-accent/40"
               >
-                "{h}"
+                {h}
               </li>
             ))}
           </ul>

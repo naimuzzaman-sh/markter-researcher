@@ -250,11 +250,16 @@ export async function runDiscovery(
     });
   }
 
-  await insertCandidates(supabase, candidateInputs);
+  // `insertCandidates` is idempotent on (brief_id, contact_id) — if
+  // discovery re-surfaces a person already linked to this brief, the
+  // duplicate is silently dropped server-side. The gap between rows
+  // we asked to insert and ids we got back becomes additional skipped.
+  const insertedIds = await insertCandidates(supabase, candidateInputs);
+  const duplicates = candidateInputs.length - insertedIds.length;
 
   return {
-    candidateCount: candidateInputs.length,
-    skipped,
+    candidateCount: insertedIds.length,
+    skipped: skipped + duplicates,
     errors,
     errorSamples,
     tokensUsed,

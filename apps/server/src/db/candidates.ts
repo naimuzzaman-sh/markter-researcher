@@ -68,9 +68,20 @@ export async function insertCandidate(
 }
 
 /**
- * Bulk-insert candidates in a single round-trip. Used by the discovery
- * flow to commit all hits at once instead of one HTTP call per result.
- * Returns ids in input order. Empty input → no-op (avoids a wasted call).
+ * Bulk-insert candidates in a single round-trip. Idempotent on the
+ * `(brief_id, contact_id)` uniqueness constraint — same person
+ * re-discovered for the same brief is silently skipped (existing
+ * status / match_score is preserved). Returns the ids of the rows
+ * that were ACTUALLY inserted; caller can compare length against
+ * input length to count duplicates.
+ *
+ * Empty input → no-op (avoids a wasted call).
+ *
+ * Why ignore-duplicates instead of overwrite: a re-discovered
+ * candidate may already be `approved`, `contacted`, or `interviewed`,
+ * and clobbering their status would silently undo researcher work.
+ * Match scores are also stable enough that updating them isn't worth
+ * the cognitive cost.
  */
 export async function insertCandidates(
   client: SupabaseClient,
@@ -86,17 +97,22 @@ export async function insertCandidates(
   }));
   const { data, error } = await client
     .from('brief_candidates')
-    .insert(rows)
+    .upsert(rows, {
+      onConflict: 'brief_id,contact_id',
+      ignoreDuplicates: true,
+    })
     .select('id');
 
-  if (error) throw new AppError('upstream', `Failed to insert candidates: ${error.message}`);
-  const ids = ((data ?? []) as Array<{ id: unknown }>)
+  if (error) {
+    throw new AppError('upstream', `Failed to insert candidates: ${error.message}`);
+  }
+  // PostgREST with ignoreDuplicates returns only the rows that were
+  // actually inserted — duplicates are silently dropped from the
+  // result set. We don't enforce length parity here; runDiscovery
+  // turns the gap into its `skipped` count.
+  return ((data ?? []) as Array<{ id: unknown }>)
     .map((r) => (typeof r.id === 'string' ? r.id : null))
     .filter((id): id is string => id !== null);
-  if (ids.length !== inputs.length) {
-    throw new AppError('internal', `Bulk insert returned ${ids.length} ids for ${inputs.length} rows`);
-  }
-  return ids;
 }
 
 /**

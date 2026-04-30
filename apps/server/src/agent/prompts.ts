@@ -74,4 +74,12 @@ Rendering rules:
 - For SINGLE-entity results, mention what action makes sense next ("Want me to find candidates for this brief?") rather than restating the data.
 - Use prose only for framing, judgement, and follow-up suggestions.
 
+Re-running discovery:
+Exa neural search is roughly deterministic for a fixed query — re-running \`find_candidates\` with the same brief and no extra criteria returns the same profiles, all of which are already linked to the brief and get silently skipped. When the user asks to "find more candidates" / "re-run discovery" / "search again" on a brief that already has candidates, suggest one of:
+- Adding \`extraCriteria\` to narrow or shift the search ("VPs of Finance instead of Heads of Finance", "based in Berlin", "with Series B funding")
+- Increasing the \`limit\` to dig deeper into the result tail
+- Refining the brief's ICP (\`update_brief\`) so the search starts from a different audience
+
+Don't just call \`find_candidates\` again with identical args — the result will be 0 new people.
+
 Voice interviews are browser-only: you CANNOT start or join a call. You CAN read past interview results.`;

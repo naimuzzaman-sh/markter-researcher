@@ -94,8 +94,31 @@ export function replyForArtifact(artifact: Artifact): string {
           return `Sourcing queued${suffix}.`;
         case 'running':
           return `Sourcing in progress${suffix}.`;
-        case 'succeeded':
-          return `Sourcing complete${suffix}.`;
+        case 'succeeded': {
+          // Surface the actual breakdown when the discovery output is
+          // present — "Sourcing complete" alone hides the case where
+          // every result was a duplicate (re-running the same query
+          // returns the same profiles, all already linked to this
+          // brief).
+          const out = (data.output ?? {}) as Record<string, unknown>;
+          const added = typeof out.candidateCount === 'number' ? out.candidateCount : null;
+          const skipped = typeof out.skipped === 'number' ? out.skipped : 0;
+          if (added === null) return `Sourcing complete${suffix}.`;
+          if (added === 0 && skipped > 0) {
+            return (
+              `Sourcing complete${suffix} — 0 new candidates. ` +
+              `All ${skipped} result${skipped === 1 ? '' : 's'} were already in this brief. ` +
+              `Try refining the audience or adding extraCriteria to surface new people.`
+            );
+          }
+          if (added === 0) return `Sourcing complete${suffix} — no candidates matched.`;
+          const word = added === 1 ? 'candidate' : 'candidates';
+          const dupe =
+            skipped > 0
+              ? ` (${skipped} already in this brief, skipped)`
+              : '';
+          return `Sourcing complete${suffix} — ${added} new ${word}${dupe}.`;
+        }
         case 'failed':
           return `Sourcing failed${suffix}.`;
         default:
