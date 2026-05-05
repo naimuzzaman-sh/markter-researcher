@@ -7,6 +7,7 @@ import {
   type PillAction,
 } from "@/lib/api";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { renderArtifact } from "./agent-cards";
 import { AssistantMarkdown } from "./AssistantMarkdown";
 import { AuthBadge } from "./editorial";
@@ -43,9 +44,10 @@ export default function AgentChat({
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   // Guards the auto-fire dashboard call against React 18 StrictMode's
-  // double-invoke and any stray remounts. One fetch per logical mount.
+  // double-invoke and any stray remounts.
   const dashboardFiredRef = useRef(false);
 
   useEffect(() => {
@@ -60,7 +62,9 @@ export default function AgentChat({
   }, [turns, isThinking]);
 
   // First-turn orientation: fire `get_dashboard` on mount so the user
-  // lands on a live "what's going on" card instead of an empty chat.
+  // lands on a live snapshot instead of an empty chat. No briefId
+  // branching anymore — the brief flow is entered by clicking a card
+  // / pill, not by URL anchoring.
   useEffect(() => {
     if (dashboardFiredRef.current) return;
     dashboardFiredRef.current = true;
@@ -92,6 +96,7 @@ export default function AgentChat({
       cancelled = true;
     };
   }, []);
+
 
   // Free-typed messages and prompt-style pill actions: route through the
   // LLM at /chat. Wire messages preserve `artifactRef` on assistant turns
@@ -152,7 +157,7 @@ export default function AgentChat({
       setIsThinking(true);
       setError(null);
       try {
-        const response = await runTool(toolName, toolArgs);
+        const response = await runTool(toolName, toolArgs, { displayText });
         setTurns((prev) => [
           ...prev,
           {
@@ -176,6 +181,97 @@ export default function AgentChat({
     setInput("");
     await handleSendText(text);
   }, [input, handleSendText]);
+
+  // "Edit brief" pill — append the brief's persisted chat_history below
+  // the existing chat, then send "Edit brief: <name>" as the next user
+  // turn. Append (not replace) preserves the user's pre-existing chat
+  // state — they can scroll up and see what they were doing before
+  // pivoting to this brief. The agent receives the full thread and
+  // picks up from the most recent in-thread turn (the loaded brief's
+  // last message), which the system prompt nudges it toward.
+  const handleEditBrief = useCallback(
+    async (
+      rawHistory: Array<{
+        role: "user" | "assistant";
+        content: string;
+        artifact?: unknown;
+        artifactRef?: unknown;
+      }>,
+      productName: string,
+    ) => {
+      if (isThinking) return;
+
+      const historyTurns: Turn[] = rawHistory
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        // Strip click-pattern noise from legacy persisted histories.
+        // Older `/run-tool` runs persisted view-only clicks like
+        // "Show me brief: X" / "Edit brief: X" + their detail cards;
+        // re-hydrating them looks like a loop. New rows skip these
+        // (server-side filter), but already-stored data still has
+        // them. Treat any "Show me brief: …" / "Edit brief: …" user
+        // turn (and the assistant reply that immediately follows) as
+        // throwaway.
+        .filter((m, i, arr) => {
+          if (m.role === "user") {
+            return !/^(show me brief|edit brief):/i.test(m.content);
+          }
+          // Drop the assistant turn that responded to a stripped click.
+          const prev = arr[i - 1];
+          if (
+            prev &&
+            prev.role === "user" &&
+            /^(show me brief|edit brief):/i.test(prev.content)
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+          artifact: (m.artifact as Artifact | null) ?? null,
+          artifactRef: (m.artifactRef as ArtifactRef | null) ?? null,
+        }));
+
+      const editText = `Edit brief: ${productName}`;
+      const userTurn: Turn = { role: "user", content: editText };
+      // Append: existing in-memory turns first, then the brief's
+      // persisted history, then the edit prompt. Order matters — the
+      // agent treats the LAST turns as "current context" and resumes
+      // from there.
+      const nextTurns: Turn[] = [...turns, ...historyTurns, userTurn];
+      setTurns(nextTurns);
+      setIsThinking(true);
+      setError(null);
+
+      try {
+        const wireMessages: ChatMessage[] = nextTurns.map((t) =>
+          t.role === "assistant"
+            ? {
+                role: "assistant",
+                content: t.content,
+                ...(t.artifactRef ? { artifactRef: t.artifactRef } : {}),
+              }
+            : { role: "user", content: t.content },
+        );
+        const response = await postChat(wireMessages);
+        setTurns((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: response.reply,
+            artifact: response.artifact,
+            artifactRef: response.artifactRef,
+          },
+        ]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Chat failed");
+      } finally {
+        setIsThinking(false);
+      }
+    },
+    [isThinking, turns],
+  );
 
   // Single dispatcher for all card/pill clicks. Routes by action.kind so
   // pills don't need to know about endpoints.
@@ -209,9 +305,26 @@ export default function AgentChat({
             );
           });
           break;
+        case "navigate":
+          navigate(action.url);
+          break;
+        case "edit-brief": {
+          // Dedup by content: if any prior user turn was already an
+          // `Edit brief: <productName>` for this brief, the click is
+          // a repeat → silent no-op. Survives component remounts /
+          // HMR because it reads `turns` (which is restored from
+          // chat_history on re-mount), not a ref.
+          const editPrompt = `Edit brief: ${action.productName}`;
+          const alreadyEdited = turns.some(
+            (t) => t.role === "user" && t.content === editPrompt,
+          );
+          if (alreadyEdited) break;
+          void handleEditBrief(action.chatHistory, action.productName);
+          break;
+        }
       }
     },
-    [handleRunTool, handleSendText],
+    [handleRunTool, handleSendText, navigate, handleEditBrief, turns],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -350,3 +463,4 @@ function TypingRow() {
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 import type { ResearchContext } from "@mirrars/shared";
 import type { ReactNode } from "react";
+import type { PillAction } from "@/lib/api";
 import { ActionPill } from "./ActionPill";
 import { formatRelativeTime } from "./format-relative-time";
 import { Panel } from "./Panel";
@@ -10,9 +11,45 @@ import type { CardRendererProps } from "./types";
 // returns a draft without a real id; it falls back to '' which disables
 // id-dependent pills.) `interviewUrl` is the public sharing link the
 // server builds from `webOrigin` — null for preview_brief.
+type ChatHistoryEntry = {
+  role: 'user' | 'assistant';
+  content: string;
+  artifact?: unknown;
+  artifactRef?: unknown;
+};
+
+type BriefResults = {
+  summary: string;
+  themes: string[];
+  painPoints: string[];
+  pmfSignalsObserved: string[];
+  recommendations: string[];
+  interviewCount: number;
+  lastUpdated: string;
+};
+
 type BriefDetailResult = {
   briefId?: string | null;
   researchContext: ResearchContext;
+  /**
+   * Lifecycle state. 'draft' = brief is being assembled in chat, may
+   * be partial. 'active' = fully populated, ready for discovery.
+   * Optional for backward compat with `preview_brief` (which doesn't
+   * persist anything) and any pre-migration clients.
+   */
+  status?: 'draft' | 'active';
+  /**
+   * Persisted brief-creation/edit conversation. `get_brief` populates
+   * this; `preview_brief` doesn't. The Edit pill ships it back into
+   * the chat shell so the user resumes from where they left off.
+   */
+  chatHistory?: ChatHistoryEntry[];
+  /**
+   * Brief-level synthesis across all completed interviews. Populated
+   * by the post-interview summarizer; null until the first interview
+   * lands. Renders as a dedicated RESULTS section on the card.
+   */
+  results?: BriefResults | null;
   createdAt: string | Date | null;
   interviewUrl?: string | null;
 };
@@ -35,77 +72,13 @@ export function BriefDetail({ result, onAction }: CardRendererProps) {
 
   return (
     <Panel
-      kicker="BRIEF"
+      kicker={brief.status === 'draft' ? 'BRIEF · DRAFT' : 'BRIEF'}
       title={productName}
       subtitle={subtitleParts.join(" · ")}
-      actions={
-        // Tool-driven action pills only render when we have a real
-        // briefId — `preview_brief` results don't carry one. In that
-        // case the only sensible follow-up is the LLM-driven "Create
-        // this brief" prompt.
-        briefId ? (
-          <>
-            <ActionPill
-              variant="solid"
-              action={{
-                kind: "tool",
-                toolName: "find_candidates",
-                toolArgs: { briefId },
-                displayText: `Find candidates for ${productName}`,
-              }}
-              onAction={onAction}
-            >
-              Find candidates →
-            </ActionPill>
-            {interviewUrl && (
-              <ActionPill
-                action={{ kind: "copy", text: interviewUrl }}
-                onAction={onAction}
-              >
-                Copy interview link
-              </ActionPill>
-            )}
-            <ActionPill
-              action={{
-                kind: "tool",
-                toolName: "list_candidates_for_brief",
-                toolArgs: { briefId },
-                displayText: `List candidates for ${productName}`,
-              }}
-              onAction={onAction}
-            >
-              View candidates
-            </ActionPill>
-            <ActionPill
-              action={{
-                kind: "tool",
-                toolName: "list_interviews",
-                toolArgs: { briefId },
-                displayText: `List interviews for ${productName}`,
-              }}
-              onAction={onAction}
-            >
-              View interviews
-            </ActionPill>
-            <ActionPill
-              action={{ kind: "prompt", text: `Edit brief: ${productName}` }}
-              onAction={onAction}
-            >
-              Edit brief
-            </ActionPill>
-          </>
-        ) : (
-          <ActionPill
-            variant="solid"
-            action={{ kind: "prompt", text: "Create this brief" }}
-            onAction={onAction}
-          >
-            Create brief →
-          </ActionPill>
-        )
-      }
+      actions={renderActions(brief, briefId, productName, interviewUrl, onAction)}
     >
       <div className="space-y-4">
+        {brief.results && <ResultsSection results={brief.results} />}
         {ctx.research?.objective && (
           <Field label="OBJECTIVE" emphasized>
             {ctx.research.objective}
@@ -160,6 +133,79 @@ export function BriefDetail({ result, onAction }: CardRendererProps) {
         )}
       </div>
     </Panel>
+  );
+}
+
+/**
+ * Aggregated findings across all completed interviews. Rendered above
+ * the brief's static fields when `results` is non-null — drawing the
+ * researcher's eye to the synthesis that's the point of the whole
+ * exercise. Refreshes after every new interview lands (server fires
+ * the summarizer on call-end).
+ */
+function ResultsSection({ results }: { results: BriefResults }) {
+  return (
+    <div className="border border-accent/30 bg-accent/5 p-4">
+      <div className="flex items-baseline justify-between">
+        <span className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent">
+          Results · {results.interviewCount}{" "}
+          {results.interviewCount === 1 ? "interview" : "interviews"}
+        </span>
+        <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-muted-foreground">
+          updated {formatRelativeTime(results.lastUpdated)}
+        </span>
+      </div>
+      <p
+        className="font-serif italic text-base leading-relaxed mt-3 text-foreground/90"
+        style={{ fontVariationSettings: "'opsz' 18" }}
+      >
+        {results.summary}
+      </p>
+      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+        {results.themes.length > 0 && (
+          <ResultsBlock label={`Themes · ${results.themes.length}`} items={results.themes} />
+        )}
+        {results.painPoints.length > 0 && (
+          <ResultsBlock
+            label={`Pain points · ${results.painPoints.length}`}
+            items={results.painPoints}
+          />
+        )}
+        {results.pmfSignalsObserved.length > 0 && (
+          <ResultsBlock
+            label={`PMF signals · ${results.pmfSignalsObserved.length}`}
+            items={results.pmfSignalsObserved}
+          />
+        )}
+        {results.recommendations.length > 0 && (
+          <ResultsBlock
+            label={`Recommendations · ${results.recommendations.length}`}
+            items={results.recommendations}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResultsBlock({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div>
+      <div className="font-mono text-[9px] tracking-[0.25em] uppercase text-accent/80">
+        {label}
+      </div>
+      <ul className="mt-1.5 space-y-1">
+        {items.map((item, i) => (
+          <li
+            key={i}
+            className="font-serif text-sm leading-snug text-foreground/85 flex gap-2"
+          >
+            <span className="text-accent shrink-0">·</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -229,5 +275,111 @@ function FieldList({
         </ul>
       )}
     </div>
+  );
+}
+
+/**
+ * Action pills branch by lifecycle, but the body of the card (fields,
+ * layout, typography) stays uniform — drafts and active briefs share
+ * the same details view. Only the affordances differ:
+ *
+ *   • No briefId (preview_brief result, never persisted)
+ *       → "Create brief →" prompt only
+ *
+ *   • Draft (status === 'draft', briefId set)
+ *       → "Edit brief →" only. Find candidates, view interviews,
+ *         copy invite link are all premature on a brief that isn't
+ *         done yet — they unlock when the user promotes to active.
+ *
+ *   • Active (status === 'active' or absent — legacy briefs default
+ *     active per the migration backfill)
+ *       → full action set: edit, discovery, copy invite, view
+ *         candidates, view interviews
+ *
+ * Edit dispatches an `edit-brief` action carrying chat history so
+ * AgentChat can append prior conversation onto the existing thread
+ * without an extra round-trip.
+ */
+function renderActions(
+  brief: BriefDetailResult,
+  briefId: string,
+  productName: string,
+  interviewUrl: string | null,
+  onAction: (action: PillAction) => void,
+): ReactNode {
+  if (!briefId) {
+    return (
+      <ActionPill
+        variant="solid"
+        action={{ kind: "prompt", text: "Create this brief" }}
+        onAction={onAction}
+      >
+        Create brief →
+      </ActionPill>
+    );
+  }
+
+  const editAction: PillAction = {
+    kind: "edit-brief",
+    briefId,
+    productName,
+    chatHistory: brief.chatHistory ?? [],
+  };
+
+  if (brief.status === "draft") {
+    return (
+      <ActionPill variant="solid" action={editAction} onAction={onAction}>
+        Edit brief →
+      </ActionPill>
+    );
+  }
+
+  return (
+    <>
+      <ActionPill variant="solid" action={editAction} onAction={onAction}>
+        Edit brief →
+      </ActionPill>
+      <ActionPill
+        action={{
+          kind: "tool",
+          toolName: "find_candidates",
+          toolArgs: { briefId },
+          displayText: `Find candidates for ${productName}`,
+        }}
+        onAction={onAction}
+      >
+        Find candidates
+      </ActionPill>
+      {interviewUrl && (
+        <ActionPill
+          action={{ kind: "copy", text: interviewUrl }}
+          onAction={onAction}
+        >
+          Copy interview link
+        </ActionPill>
+      )}
+      <ActionPill
+        action={{
+          kind: "tool",
+          toolName: "list_candidates_for_brief",
+          toolArgs: { briefId },
+          displayText: `List candidates for ${productName}`,
+        }}
+        onAction={onAction}
+      >
+        View candidates
+      </ActionPill>
+      <ActionPill
+        action={{
+          kind: "tool",
+          toolName: "list_interviews",
+          toolArgs: { briefId },
+          displayText: `List interviews for ${productName}`,
+        }}
+        onAction={onAction}
+      >
+        View interviews
+      </ActionPill>
+    </>
   );
 }

@@ -20,8 +20,18 @@ export type {
   BriefPatch,
 } from './types/research-context.type';
 
-export { briefSchema } from './types/brief.type';
-export type { Brief } from './types/brief.type';
+export {
+  briefSchema,
+  briefStatusSchema,
+  briefChatMessageSchema,
+  briefResultsSchema,
+} from './types/brief.type';
+export type {
+  Brief,
+  BriefStatus,
+  BriefChatMessage,
+  BriefResults,
+} from './types/brief.type';
 
 export {
   callAnalysisSchema,

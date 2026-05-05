@@ -232,15 +232,25 @@ type RunToolResponse = {
  *
  * Same artifact/artifactRef shape as ChatResponse, so the resulting
  * synthetic assistant turn appears identical to an LLM-produced one.
+ *
+ * `displayText` is optional — when supplied it gets persisted as the
+ * implied user turn for brief-anchored chats so the audit trail reads
+ * sensibly ("List candidates for Dynt" → list output) instead of a
+ * bare assistant turn appearing without preceding context. The server
+ * decides whether to persist based on whether the tool references a
+ * brief; the client doesn't track anchor state.
  */
 async function runTool(
   name: string,
   args: Record<string, unknown>,
+  options?: { displayText?: string },
 ): Promise<RunToolResponse> {
+  const body: Record<string, unknown> = { name, args };
+  if (options?.displayText) body.displayText = options.displayText;
   const response = await fetch(RUN_TOOL_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
-    body: JSON.stringify({ name, args }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(await readError(response, 'Action failed'));
   return response.json() as Promise<RunToolResponse>;
@@ -262,7 +272,32 @@ type PillAction =
   | { kind: 'prompt'; text: string }
   | { kind: 'href'; url: string }
   | { kind: 'mailto'; address: string }
-  | { kind: 'copy'; text: string };
+  | { kind: 'copy'; text: string }
+  /**
+   * In-app SPA navigation. Used for cross-route links (e.g. landing
+   * → assistant). Distinct from `href` (external, new tab).
+   */
+  | { kind: 'navigate'; url: string }
+  /**
+   * Resume editing a brief. Replaces current chat turns with the
+   * brief's persisted chat_history, then sends "Edit brief: <name>"
+   * as the next user message so the agent has the full prior context
+   * AND a clear instruction to keep going. Replacement is intentional
+   * — the user is switching focus to this brief's conversation;
+   * pre-existing universal-chat turns aren't part of this brief's
+   * thread.
+   */
+  | {
+      kind: 'edit-brief';
+      briefId: string;
+      productName: string;
+      chatHistory: Array<{
+        role: 'user' | 'assistant';
+        content: string;
+        artifact?: unknown;
+        artifactRef?: unknown;
+      }>;
+    };
 
 export {
   startCall,

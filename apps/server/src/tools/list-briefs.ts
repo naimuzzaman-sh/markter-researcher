@@ -14,6 +14,7 @@ type Output = Array<{
   industry: string;
   objective: string;
   questionCount: number;
+  status: 'draft' | 'active';
   createdAt: string;
   interviewUrl: string;
 }>;
@@ -32,6 +33,7 @@ export const listBriefsTool: Tool<z.infer<typeof inputSchema>, Output> = {
       industry: b.researchContext.company?.industry ?? '',
       objective: b.researchContext.research?.objective ?? '',
       questionCount: b.researchContext.research?.questions?.length ?? 0,
+      status: b.status,
       createdAt: b.createdAt.toISOString(),
       interviewUrl: buildInterviewUrl(ctx.config.webOrigin, b.id),
     }));

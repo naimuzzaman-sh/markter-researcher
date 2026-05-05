@@ -13,6 +13,7 @@ type DashboardOutput = {
     briefId: string;
     productName: string;
     companyName: string;
+    status: 'draft' | 'active';
     createdAt: string;
   }>;
   recentInterviews: Array<{
@@ -102,6 +103,7 @@ export const getDashboardTool: Tool<z.infer<typeof inputSchema>, DashboardOutput
       briefId: b.id,
       productName: b.researchContext.product?.name ?? '',
       companyName: b.researchContext.company?.name ?? '',
+      status: b.status,
       createdAt: b.createdAt.toISOString(),
     }));
 

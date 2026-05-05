@@ -59,8 +59,16 @@ export type ArtifactRef = {
 const TOOL_TO_ARTIFACT_TYPE: Record<string, ArtifactType> = {
   list_briefs: 'brief.list',
   get_brief: 'brief.detail',
-  create_brief: 'brief.detail',
-  update_brief: 'brief.detail',
+  // `create_brief` and `update_brief` are intentionally NOT in this map.
+  // They're internal mechanism in the iterative draft flow — every time
+  // the user adds a piece of info, the agent calls update_brief to layer
+  // it onto the row. Surfacing a brief.detail card after each call would
+  // spam the chat with redundant cards and visually interrupt what's
+  // really a continuous conversation.
+  //
+  // The user-facing path to view a brief is `preview_brief({ briefId })`
+  // (during drafting) or `get_brief({ briefId })` (after / for editing).
+  // Both still surface their results as cards.
   preview_brief: 'brief.detail',
   list_candidates_for_brief: 'candidate.list',
   get_candidate: 'candidate.detail',
@@ -85,6 +93,60 @@ export function pickArtifact(toolCalls: ToolCallRecord[]): Artifact | null {
     return { type, data: call.result };
   }
   return null;
+}
+
+/**
+ * Tools that touch a brief but DON'T produce a visible card. Their
+ * results still need to flow into `artifactRef.entities` so future
+ * turns know which brief is in scope (otherwise the agent picks
+ * stale ids from earlier list/get calls and `update_brief` fails
+ * with "Brief not found").
+ *
+ * Kept separate from `TOOL_TO_ARTIFACT_TYPE` because `pickArtifact`
+ * MUST NOT return these — they'd render as redundant cards.
+ */
+const SCOPE_ONLY_TOOLS: Record<string, ArtifactType> = {
+  create_brief: 'brief.detail',
+  update_brief: 'brief.detail',
+};
+
+/**
+ * Build the artifactRef for a turn. Two layers:
+ *   1. The visible artifact (if any) contributes its entities.
+ *   2. Scope-only tools (create_brief / update_brief) ALSO contribute
+ *      — their briefId enters the chain even when no card renders.
+ *
+ * Returns null only when nothing in the turn referenced an entity.
+ */
+export function buildArtifactRef(
+  artifact: Artifact | null,
+  toolCalls: ToolCallRecord[],
+): ArtifactRef | null {
+  const entities: ScopeEntity[] = [];
+  let primaryType: ArtifactType | null = null;
+
+  if (artifact) {
+    const fromArtifact = artifactToRef(artifact);
+    entities.push(...fromArtifact.entities);
+    primaryType = fromArtifact.type;
+  }
+
+  for (const call of toolCalls) {
+    if (call.error) continue;
+    const scopeType = SCOPE_ONLY_TOOLS[call.name];
+    if (!scopeType) continue;
+    const fromCall = artifactToRef({ type: scopeType, data: call.result });
+    entities.push(...fromCall.entities);
+    if (!primaryType) primaryType = scopeType;
+  }
+
+  if (entities.length === 0) return null;
+
+  // Dedupe by (kind, id), keeping the last occurrence (most recent
+  // wins for name updates). Preserves overall last-seen order.
+  const seen = new Map<string, ScopeEntity>();
+  for (const e of entities) seen.set(`${e.kind}:${e.id}`, e);
+  return { type: primaryType ?? 'brief.detail', entities: Array.from(seen.values()) };
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   buildFirstMessage,
 } from '../agent/interview-prompt';
 import { analyzeTranscript } from '../agent/analyze-transcript';
+import { summarizeBrief } from '../agent/summarize-brief';
 
 type CallRecord = {
   id: string;
@@ -108,6 +109,9 @@ export function createCallsRoute(deps: {
     let status: 'completed' | 'failed' = 'completed';
     let analysis: Awaited<ReturnType<typeof analyzeTranscript>> | null = null;
 
+    // Stage 1: transcript polling. This is the interview itself —
+    // failure here means the call genuinely didn't produce content,
+    // and `failed` is the correct status.
     try {
       transcript = await pollForTranscript(
         deps.config.elevenlabsApiKey,
@@ -117,16 +121,31 @@ export function createCallsRoute(deps: {
       if (transcript.length === 0) {
         status = 'failed';
         logger.warn('Conversation ended with empty transcript');
-      } else {
+      }
+    } catch (err) {
+      status = 'failed';
+      logger.error('transcript polling failed', { err });
+    }
+
+    // Stage 2: analysis. ONLY runs if we have a transcript. Failure
+    // here is enrichment-level — the interview itself succeeded
+    // (we have the transcript). Don't mark the row as failed for a
+    // transient Gemini outage / 503 — that misleads the user into
+    // thinking the call didn't go through. Just leave analysis null;
+    // the transcript is still recoverable, and a future re-analysis
+    // path can fill it in if/when we add one.
+    if (status === 'completed' && transcript.length > 0) {
+      try {
         analysis = await analyzeTranscript(
           deps.config.geminiApiKey,
           transcript,
           record.context.research.questions,
         );
+      } catch (err) {
+        logger.warn('analyzeTranscript failed (interview kept as completed)', {
+          err: err instanceof Error ? err.message : String(err),
+        });
       }
-    } catch (err) {
-      status = 'failed';
-      logger.error('endCall failed', { err });
     }
 
     const completedAt = new Date();
@@ -170,6 +189,33 @@ export function createCallsRoute(deps: {
     // Fire-and-forget agent cleanup.
     void deleteElevenLabsAgent(deps.config.elevenlabsApiKey, record.agentId).catch(() => {});
     inFlight.delete(callId);
+
+    // Fire-and-forget: re-synthesize brief-level findings across all
+    // completed interviews. Triggered after every successful interview;
+    // the latest run overwrites `briefs.results`. Failures are logged
+    // but never block the response — the interview itself is the
+    // user-facing artifact, the synthesis is enrichment.
+    if (status === 'completed' && interviewId) {
+      void summarizeBrief({
+        apiKey: deps.config.geminiApiKey,
+        supabase: deps.supabase,
+        briefId: record.briefId,
+      })
+        .then((results) => {
+          if (results) {
+            logger.info('brief summarized', {
+              briefId: record.briefId,
+              interviewCount: results.interviewCount,
+            });
+          }
+        })
+        .catch((err) => {
+          logger.warn('brief summarize failed', {
+            briefId: record.briefId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        });
+    }
 
     return c.json({
       callId: record.id,

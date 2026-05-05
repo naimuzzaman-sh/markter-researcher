@@ -96,6 +96,49 @@ export async function listInterviewsByOwner(
 }
 
 /**
+ * Load all COMPLETED interviews for a brief, with full transcripts +
+ * analyses. Used by the post-interview summarizer to synthesize
+ * brief-level findings. No owner-gate here — this is server-internal,
+ * called from server-side handlers that already have the brief in
+ * scope (fire-and-forget after `endCall`).
+ *
+ * Failed interviews are excluded — empty transcripts contribute
+ * nothing to a synthesis.
+ */
+export async function listCompletedInterviewsForBriefSummarization(
+  client: SupabaseClient,
+  briefId: string,
+): Promise<
+  Array<{
+    interviewId: string;
+    transcript: SavedInterview['transcript'];
+    analysis: SavedInterview['analysis'];
+    completedAt: Date | null;
+  }>
+> {
+  const { data, error } = await client
+    .from('interviews')
+    .select('id, transcript, analysis, completed_at')
+    .eq('brief_id', briefId)
+    .eq('status', 'completed')
+    .order('completed_at', { ascending: true });
+  if (error) {
+    throw new AppError('upstream', `Failed to load interviews for summary: ${error.message}`);
+  }
+  return ((data ?? []) as Array<{
+    id: string;
+    transcript: SavedInterview['transcript'];
+    analysis: SavedInterview['analysis'];
+    completed_at: string | null;
+  }>).map((r) => ({
+    interviewId: r.id,
+    transcript: r.transcript,
+    analysis: r.analysis,
+    completedAt: r.completed_at ? new Date(r.completed_at) : null,
+  }));
+}
+
+/**
  * Fetch one interview the caller owns. Missing-or-unauthorized collapses to
  * null so we never reveal which owner the interview belongs to.
  */

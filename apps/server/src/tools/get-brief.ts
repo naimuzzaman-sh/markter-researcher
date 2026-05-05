@@ -20,6 +20,16 @@ export const getBriefTool: Tool<z.infer<typeof inputSchema>> = {
     return {
       briefId: brief.id,
       researchContext: brief.researchContext,
+      status: brief.status,
+      // Chat history rides on the detail wire shape so the AgentChat
+      // shell can hydrate the conversation when the user resumes a
+      // brief via `/assistant?briefId=<id>`. Empty array on briefs
+      // that pre-date persistence.
+      chatHistory: brief.chatHistory,
+      // Brief-level synthesis across all completed interviews.
+      // Null until the first interview lands. UI hides the RESULTS
+      // section when null.
+      results: brief.results,
       createdAt: brief.createdAt.toISOString(),
       interviewUrl: buildInterviewUrl(ctx.config.webOrigin, brief.id),
     };

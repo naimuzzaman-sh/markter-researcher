@@ -13,6 +13,7 @@ type DashboardData = {
     briefId: string;
     productName: string;
     companyName: string;
+    status: "draft" | "active";
     createdAt: string;
   }>;
   recentInterviews: Array<{
@@ -139,6 +140,10 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
             {data.recentBriefs.map((b) => (
               <Row
                 key={b.briefId}
+                // Click fires get_brief → renders the detail card inline.
+                // Same flow whether draft or active — the card itself
+                // exposes an "Edit brief" pill that loads chat history
+                // for resumption. Keeps the chat thread continuous.
                 onClick={() =>
                   onAction({
                     kind: "tool",
@@ -148,7 +153,11 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
                   })
                 }
                 left={b.productName || "Untitled brief"}
-                right={formatRelativeTime(b.createdAt)}
+                right={
+                  b.status === "draft"
+                    ? `${formatRelativeTime(b.createdAt)} · draft`
+                    : formatRelativeTime(b.createdAt)
+                }
               />
             ))}
           </Section>

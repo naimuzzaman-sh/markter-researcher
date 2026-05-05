@@ -10,6 +10,7 @@ type BriefListItem = {
   industry: string;
   objective: string;
   questionCount: number;
+  status: 'draft' | 'active';
   createdAt: string;
 };
 
@@ -42,6 +43,12 @@ export function BriefList({ result, onAction }: CardRendererProps) {
       {items.map((b, i) => {
         const subtitleParts = [b.companyName, b.industry].filter(Boolean);
         const productName = b.productName || 'Untitled brief';
+        const isDraft = b.status === 'draft';
+        // Click → fetch the brief detail (same get_brief tool as a
+        // direct "show me brief X" prompt). The detail card renders
+        // inline in chat with action pills (Edit, Find candidates, …).
+        // We deliberately don't navigate / change route — keeping the
+        // chat thread continuous matters more than URL-anchoring.
         return (
           <Panel
             key={b.briefId}
@@ -54,7 +61,11 @@ export function BriefList({ result, onAction }: CardRendererProps) {
                 displayText: `Show me brief: ${productName}`,
               })
             }
-            kicker={`BRIEF · ${String(i + 1).padStart(2, '0')}`}
+            kicker={
+              isDraft
+                ? `BRIEF · ${String(i + 1).padStart(2, '0')} · DRAFT`
+                : `BRIEF · ${String(i + 1).padStart(2, '0')}`
+            }
             title={productName}
             subtitle={subtitleParts.join(' · ')}
             variant="tight"
@@ -66,7 +77,9 @@ export function BriefList({ result, onAction }: CardRendererProps) {
             )}
             <div className="mt-3 pt-2 border-t border-border/40 flex justify-between font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
               <span>
-                {b.questionCount} {b.questionCount === 1 ? 'question' : 'questions'}
+                {isDraft
+                  ? 'in progress'
+                  : `${b.questionCount} ${b.questionCount === 1 ? 'question' : 'questions'}`}
               </span>
               <span>{formatRelativeTime(b.createdAt)}</span>
             </div>
