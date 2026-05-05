@@ -80,7 +80,17 @@ const baseStudy = {
   ownerId,
   researchContext: {
     company: { name: 'Acme', industry: 'fintech', description: '' },
-    product: { name: 'Acme Pay', description: '', keyFeatures: [], targetAudience: 'SMBs' },
+    product: {
+      name: 'Acme Pay',
+      description: '',
+      keyFeatures: [],
+      icp: {
+        audience: 'SMB owners',
+        problem: 'manual reconciliation',
+        attributes: [{ name: 'companySize', value: '1-50' }],
+        summary: 'SMB owners — 1-50 — manual reconciliation',
+      },
+    },
     research: { objective: '', questions: [], concerns: [], productMarketFit: {} },
     interviewSettings: { maxDurationMinutes: 30, tone: 'friendly', language: 'en' },
   },

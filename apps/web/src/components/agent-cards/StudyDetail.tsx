@@ -1,4 +1,4 @@
-import type { ResearchContext } from "@mirrars/shared";
+import type { Icp, ResearchContext } from "@mirrars/shared";
 import type { ReactNode } from "react";
 import type { PillAction } from "@/lib/api";
 import { ActionPill } from "./ActionPill";
@@ -84,9 +84,7 @@ export function StudyDetail({ result, onAction }: CardRendererProps) {
             {ctx.research.objective}
           </Field>
         )}
-        {ctx.product?.targetAudience && (
-          <Field label="TARGET AUDIENCE">{ctx.product.targetAudience}</Field>
-        )}
+        {ctx.product?.icp && <IcpSection icp={ctx.product.icp} />}
         {ctx.product?.description && (
           <Field label="PRODUCT">{ctx.product.description}</Field>
         )}
@@ -205,6 +203,59 @@ function ResultsBlock({ label, items }: { label: string; items: string[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Render the structured ICP. Headline is `audience`; the auto-rendered
+ * one-line `summary` carries the full label (audience · attrs · geo ·
+ * problem). Below, the concrete attributes show as small pill-style
+ * key/value chips so the researcher can scan the dimensions at a
+ * glance. Optional `geography`, `signals`, `excludes` only render when
+ * present — keeps the block tight on minimal ICPs.
+ */
+function IcpSection({ icp }: { icp: Icp }) {
+  return (
+    <div>
+      <FieldLabel>IDEAL CUSTOMER PROFILE</FieldLabel>
+      <p className="mt-1.5 font-serif text-base leading-relaxed">
+        {icp.audience}
+      </p>
+      <p className="mt-1 font-serif italic text-sm leading-snug text-muted-foreground">
+        {icp.problem}
+      </p>
+      {icp.attributes.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {icp.attributes.map((a, i) => (
+            <li
+              key={i}
+              className="font-mono text-[10px] uppercase tracking-[0.1em] border border-border px-1.5 py-0.5"
+            >
+              <span className="text-muted-foreground">{a.name}</span>
+              <span className="mx-1 text-muted-foreground/50">·</span>
+              <span>{a.value}</span>
+            </li>
+          ))}
+          {icp.geography && (
+            <li className="font-mono text-[10px] uppercase tracking-[0.1em] border border-border px-1.5 py-0.5">
+              <span className="text-muted-foreground">geography</span>
+              <span className="mx-1 text-muted-foreground/50">·</span>
+              <span>{icp.geography}</span>
+            </li>
+          )}
+        </ul>
+      )}
+      {icp.signals && icp.signals.length > 0 && (
+        <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+          signals · {icp.signals.join(' · ')}
+        </p>
+      )}
+      {icp.excludes && icp.excludes.length > 0 && (
+        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+          excludes · {icp.excludes.join(' · ')}
+        </p>
+      )}
     </div>
   );
 }

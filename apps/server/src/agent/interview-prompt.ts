@@ -51,7 +51,7 @@ ${research.objective}
 - Company: ${company.name} (${company.industry})
 - Product: ${product.name}
 - Key Features: ${product.keyFeatures.join(', ')}
-- Target Audience: ${product.targetAudience}
+- Target Audience: ${product.icp.summary}
 
 ## Interview Structure
 

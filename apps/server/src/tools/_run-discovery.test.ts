@@ -60,7 +60,18 @@ const baseStudy = {
       name: 'Acme',
       description: 'Reconciliation tool',
       keyFeatures: [],
-      targetAudience: 'Heads of Finance at Series A fintechs',
+      icp: {
+        audience: 'Heads of Finance',
+        problem: 'manual ETL eats hours',
+        attributes: [
+          { name: 'industry', value: 'fintech' },
+          { name: 'companyStage', value: 'Series A' },
+          { name: 'techStack', value: 'Snowflake' },
+        ],
+        geography: 'EU',
+        summary:
+          'Heads of Finance — fintech · Series A · Snowflake · EU — manual ETL eats hours',
+      },
     },
     research: {
       objective: 'discover ICP',
@@ -126,20 +137,26 @@ describe('runDiscovery', () => {
     ).rejects.toThrow(/Study not found/);
   });
 
-  it('builds an Exa query with category linkedin profile + livecrawl preferred + highlights', async () => {
+  it('builds Exa queries with category linkedin profile + livecrawl preferred + highlights', async () => {
     vi.mocked(exaSearch).mockResolvedValue([]);
-    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 3 });
+    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 9 });
+    // Three variants run in parallel — audience-led, problem-led, context-led.
+    expect(vi.mocked(exaSearch)).toHaveBeenCalledTimes(3);
     const call = vi.mocked(exaSearch).mock.calls[0];
     expect(call[0]).toBe('k');
     expect(call[1].category).toBe('linkedin profile');
     expect(call[1].livecrawl).toBe('preferred');
     expect(call[1].includeDomains).toEqual(['linkedin.com']);
     expect(call[1].highlights?.numSentences).toBe(2);
+    // Each variant gets its share — limit 9 / 3 variants = 3 per variant.
     expect(call[1].numResults).toBe(3);
-    // Query is composed from the study's full ICP context, not just two tokens.
-    expect(call[1].query).toContain('Heads of Finance at Series A fintechs');
+    // Audience-led query (variant #1) is composed from the structured ICP
+    // — audience + attributes + geography.
+    expect(call[1].query).toContain('Heads of Finance');
     expect(call[1].query).toContain('fintech');
-    expect(call[1].query).toContain('Reconciliation tool');
+    // The audience-led query carries audience + attributes + geography
+    // (problem and product description live on the OTHER variants).
+    expect(call[1].query).toContain('EU');
   });
 
   it('prefers Exa author for the contact name when present', async () => {

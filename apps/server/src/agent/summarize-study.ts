@@ -33,7 +33,7 @@ function buildSummaryPrompt(args: {
 }): string {
   const productName = args.context.product?.name ?? 'the product';
   const objective = args.context.research?.objective ?? '(no objective set)';
-  const audience = args.context.product?.targetAudience ?? '(no audience set)';
+  const audience = args.context.product?.icp?.summary ?? '(no audience set)';
 
   const interviewsBlock = args.interviews
     .map((iv, idx) => {

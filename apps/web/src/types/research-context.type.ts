@@ -13,6 +13,21 @@ type ResearchQuestion = {
   category: QuestionCategory;
 };
 
+type IcpAttribute = {
+  name: string;
+  value: string;
+};
+
+type Icp = {
+  audience: string;
+  problem: string;
+  attributes: IcpAttribute[];
+  geography?: string;
+  signals?: string[];
+  excludes?: string[];
+  summary: string;
+};
+
 type ResearchContext = {
   company: {
     name: string;
@@ -23,7 +38,7 @@ type ResearchContext = {
     name: string;
     description: string;
     keyFeatures: string[];
-    targetAudience: string;
+    icp: Icp;
   };
   research: {
     objective: string;
@@ -41,4 +56,10 @@ type ResearchContext = {
   };
 };
 
-export type { ResearchContext, ResearchQuestion, QuestionCategory };
+export type {
+  ResearchContext,
+  ResearchQuestion,
+  QuestionCategory,
+  Icp,
+  IcpAttribute,
+};

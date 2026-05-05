@@ -31,7 +31,21 @@ const baseStudy = {
   id: studyId,
   researchContext: {
     company: { name: 'Acme', industry: 'fintech', description: 'd' },
-    product: { name: 'Acme Pay', description: 'd', keyFeatures: ['x'], targetAudience: 'SMBs' },
+    product: {
+      name: 'Acme Pay',
+      description: 'd',
+      keyFeatures: ['x'],
+      icp: {
+        audience: 'SMB owners',
+        problem: 'manual reconciliation eats hours',
+        attributes: [
+          { name: 'role', value: 'owner' },
+          { name: 'companySize', value: '1-50' },
+          { name: 'industry', value: 'retail' },
+        ],
+        summary: 'SMB owners — owner · 1-50 · retail — manual reconciliation eats hours',
+      },
+    },
     research: {
       objective: 'Validate PMF',
       questions: [],

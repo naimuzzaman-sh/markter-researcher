@@ -12,12 +12,16 @@ export {
   researchQuestionSchema,
   questionCategorySchema,
   studyPatchSchema,
+  icpSchema,
+  icpAttributeSchema,
 } from './types/research-context.type';
 export type {
   ResearchContext,
   ResearchQuestion,
   QuestionCategory,
   StudyPatch,
+  Icp,
+  IcpAttribute,
 } from './types/research-context.type';
 
 export {

@@ -161,31 +161,96 @@ export async function runDiscovery(
   const study = await getStudyById(supabase, input.studyId);
   if (!study) throw new AppError('not_found', 'Study not found');
 
-  // Build the search query from the study's full ICP context, not just
-  // a two-token concat. Neural retrieval rewards prose-like queries.
+  // Build queries from the structured ICP — `find_candidates` already
+  // gated on score, so we can rely on it being thick. Three targeted
+  // variants run in parallel, dedupe by URL after merge:
+  //   1. AUDIENCE-LED: audience + attributes — finds the right person
+  //   2. PROBLEM-LED:  problem + signals + audience — finds people
+  //                    whose stated frustrations match
+  //   3. CONTEXT-LED:  attributes + product domain — finds people in
+  //                    the right context (industry/role/etc.)
+  // Different angles on the same audience widen coverage compared
+  // to a single concatenated query. Cost: 3x Exa calls for an
+  // ~estimate ~2x dedupe-merged unique results.
   const ctx = study.researchContext;
-  const queryParts = [
-    ctx.product?.targetAudience,
-    ctx.company?.industry,
-    ctx.product?.description,
-    input.extraCriteria,
-  ].filter(Boolean) as string[];
-  const query = queryParts.join('. ');
-  // Highlights query = a tighter "who am I looking for" phrase. Exa
-  // uses it to choose which sentences to surface as the match excerpts.
-  const highlightsQuery =
-    [ctx.product?.targetAudience, input.extraCriteria].filter(Boolean).join(' ') ||
-    query;
+  const icp = ctx.product?.icp;
+  if (!icp) {
+    throw new AppError(
+      'validation',
+      'Study has no ICP — discovery requires `product.icp` populated. Refine via `update_study` first.',
+    );
+  }
+  const attrValues = (icp.attributes ?? [])
+    .map((a) => a.value)
+    .filter(Boolean);
+  const attrPart = attrValues.join(' · ');
+  const geoPart = icp.geography ?? '';
+  const signalsPart = (icp.signals ?? []).join(', ');
+  const productDomain = ctx.product?.description ?? '';
+  const extra = input.extraCriteria ?? '';
 
-  const results = await exaSearch(config.exaApiKey, {
-    query,
-    numResults: input.limit,
+  const audienceLedQuery = [
+    icp.audience,
+    attrPart,
+    geoPart,
+    extra,
+  ]
+    .filter(Boolean)
+    .join('. ');
+  const problemLedQuery = [
+    icp.problem,
+    signalsPart,
+    icp.audience,
+    extra,
+  ]
+    .filter(Boolean)
+    .join('. ');
+  const contextLedQuery = [
+    attrPart,
+    productDomain,
+    icp.audience,
+    geoPart,
+  ]
+    .filter(Boolean)
+    .join('. ');
+
+  // Highlights query stays a tight one-liner — what should the
+  // per-result excerpts answer? "Why does this person match?"
+  const highlightsQuery = icp.summary;
+
+  // Per-variant numResults — total cap at input.limit, split evenly
+  // across active variants. Floor at 3 per variant so each contributes
+  // meaningfully even on small limits.
+  const variants = [audienceLedQuery, problemLedQuery, contextLedQuery].filter(Boolean);
+  const perVariant = Math.max(3, Math.ceil(input.limit / variants.length));
+
+  const exaCommon = {
+    numResults: perVariant,
     includeDomains: ['linkedin.com'],
     category: 'linkedin profile',
-    livecrawl: 'preferred',
+    livecrawl: 'preferred' as const,
     includeText: true,
     highlights: { numSentences: 2, highlightsPerUrl: 2, query: highlightsQuery },
-  });
+  };
+
+  const variantResults = await Promise.all(
+    variants.map((query) => exaSearch(config.exaApiKey, { ...exaCommon, query })),
+  );
+
+  // Merge + dedupe by URL, preserve first-seen order so the
+  // audience-led variant's top hits stay near the top.
+  const seenUrls = new Set<string>();
+  const merged: typeof variantResults[number] = [];
+  for (const list of variantResults) {
+    for (const r of list) {
+      if (seenUrls.has(r.url)) continue;
+      seenUrls.add(r.url);
+      merged.push(r);
+    }
+  }
+  // Cap to caller's requested limit AFTER merge so multi-variant
+  // overlap doesn't blow past the budget.
+  const results = merged.slice(0, input.limit);
 
   // Filter to person profiles only, even though category should already
   // restrict — defensive against indexer drift.

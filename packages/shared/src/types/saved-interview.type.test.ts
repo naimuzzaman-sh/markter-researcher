@@ -13,7 +13,16 @@ const validInterview = {
       name: 'P',
       description: 'd',
       keyFeatures: ['a'],
-      targetAudience: 'ta',
+      icp: {
+        audience: 'PMs',
+        problem: 'manual reporting eats hours',
+        attributes: [
+          { name: 'role', value: 'PM' },
+          { name: 'industry', value: 'SaaS' },
+          { name: 'companyStage', value: 'Series A' },
+        ],
+        summary: 'PMs — PM · SaaS · Series A — manual reporting eats hours',
+      },
     },
     research: {
       objective: 'obj',

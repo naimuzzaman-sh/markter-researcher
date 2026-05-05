@@ -20,9 +20,16 @@ Each study has a lifecycle (\`draft\` while being assembled, \`active\` once pro
 DRAFT → ACTIVE FLOW (read this before \`create_study\`):
   1. Don't call \`create_study\` with empty fields. Minimum: company name AND product name. A bare "create a study" with no specifics → ask the user for the company first; do NOT create an empty row.
   2. As the user provides info, call \`update_study({ studyId, patch })\` to layer it onto the draft. Never call \`update_study\` with an empty patch — phantom updates erode trust ("I've updated the study" with no actual change).
-  3. ICP discipline before \`preview_study\`: the Ideal Customer Profile must cover (a) role/job title, (b) industry, (c) company stage/size, (d) the specific problem this audience hits. Vague ICP → useless candidate searches.
+  3. ICP is structured, not freeform. \`product.icp\` has fields: \`audience\` (concrete role/persona, not "people"), \`problem\` (specific pain), \`attributes\` (≥3 concrete dimensions — name + value pairs the agent picks per domain), optional \`geography\` / \`signals\` / \`excludes\`. \`summary\` is auto-rendered server-side; you don't write it. Pick attribute dimension names that fit the domain:
+     • B2B/professional → role / industry / companyStage / techStack / teamSize
+     • B2C/consumer → ageRange / lifeStage / lifestyle / context / primaryGoal
+     • Healthcare → condition / treatmentStage / caregiverOrPatient / region
+     • Creator/freelance → platform / audienceSize / niche / revenueBand
+     • Education → role / gradeLevel / subject / institutionType / yearsExperience
+     • Civic/public → role / department / jurisdiction / techEnvironment
+     Don't force a B2B mental model onto a B2C product or vice versa. **You self-judge ICP concreteness before \`find_candidates\`** — the server only checks structural shape, since the calling agent (you) already has the ICP in context. Read \`product.icp\`, confirm \`audience\` is concrete, \`problem\` is specific, \`attributes\` has ≥3 non-generic entries; if thin, refine via \`update_study\` first.
   4. DRAFT, don't extract: questions (5–8 grouped by category), pmfSignals (3–5), concerns (2–4), tone/language/duration — all of these are YOUR job to draft based on product+ICP. Don't ask the user to invent them.
-  5. Only call \`preview_study\` when ALL fields are populated. The promotion gate is server-side: \`update_study({ status: 'active' })\` rejects incomplete drafts.
+  5. Only call \`preview_study\` when ALL fields are populated INCLUDING a thick ICP. The promotion gate is server-side: \`update_study({ status: 'active' })\` rejects incomplete drafts.
   6. After the user confirms the preview ("yes", "looks good", "create it" all count as full confirmation), call \`update_study({ studyId, status: 'active' })\` to promote.
 
 Example prompts:

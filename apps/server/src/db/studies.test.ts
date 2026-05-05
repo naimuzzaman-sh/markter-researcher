@@ -59,7 +59,21 @@ function makeClient(
 
 const sampleContext = {
   company: { name: 'Co', industry: 'SaaS', description: 'd' },
-  product: { name: 'P', description: 'd', keyFeatures: ['a'], targetAudience: 't' },
+  product: {
+    name: 'P',
+    description: 'd',
+    keyFeatures: ['a'],
+    icp: {
+      audience: 'PMs',
+      problem: 'manual reporting',
+      attributes: [
+        { name: 'role', value: 'PM' },
+        { name: 'industry', value: 'SaaS' },
+        { name: 'companyStage', value: 'Series A' },
+      ],
+      summary: 'PMs — PM · SaaS · Series A — manual reporting',
+    },
+  },
   research: {
     objective: 'o',
     questions: [{ id: 'q1', text: 'Q?', followUp: 'F', category: 'background' as const }],

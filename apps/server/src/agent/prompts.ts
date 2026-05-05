@@ -88,7 +88,7 @@ Then call \`preview_study\` with the full draft and let the user edit ("remove t
 
 PREVIEW COMPLETENESS REQUIREMENT: Before calling \`preview_study({ studyId })\`, the study MUST have ALL of the following populated — either by you having previously called \`update_study\` with each, or by including the patches in the conversation flow:
 - \`company.name\`, \`company.industry\`, \`company.description\`
-- \`product.name\`, \`product.description\`, \`product.targetAudience\`, \`product.keyFeatures\` (≥1)
+- \`product.name\`, \`product.description\`, \`product.keyFeatures\` (≥1), \`product.icp\` (concrete \`audience\` + \`problem\` + ≥3 \`attributes\`)
 - \`research.objective\`, \`research.questions\` (5–8 you drafted), \`research.concerns\` (2–4), \`research.productMarketFit.hypothesis\`, \`research.productMarketFit.signals\` (3–5)
 - \`interviewSettings.maxDurationMinutes\`, \`interviewSettings.tone\`, \`interviewSettings.language\`
 

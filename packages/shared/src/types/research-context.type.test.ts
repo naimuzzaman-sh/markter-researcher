@@ -11,7 +11,17 @@ const validContext = {
     name: 'Mirrars Agent',
     description: 'AI agent that calls users to conduct structured market research interviews',
     keyFeatures: ['Voice interviews', 'Adaptive questioning', 'Post-call analysis'],
-    targetAudience: 'Product managers, founders, and market researchers',
+    icp: {
+      audience: 'Product managers and founders running customer research',
+      problem: 'Manual interview scheduling and synthesis takes weeks',
+      attributes: [
+        { name: 'role', value: 'PM / founder' },
+        { name: 'companyStage', value: 'Seed–Series B' },
+        { name: 'researchCadence', value: 'monthly' },
+      ],
+      summary:
+        'Product managers and founders — PM / founder · Seed–Series B · monthly — Manual interview scheduling and synthesis takes weeks',
+    },
   },
   research: {
     objective: 'Understand how potential users currently conduct market research and their interest in an AI-powered solution',

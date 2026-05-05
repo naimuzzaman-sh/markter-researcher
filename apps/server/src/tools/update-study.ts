@@ -8,6 +8,7 @@ import {
 import { z } from 'zod';
 import { getStudyById, updateStudyById } from '../db/studies';
 import { buildInterviewUrl } from '../lib/interview-url';
+import { buildIcpSummary } from '../lib/icp';
 import { AppError } from '../lib/errors';
 import type { Tool } from './types';
 
@@ -75,7 +76,7 @@ function mergeContext(
 export const updateStudyTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'update_study',
   description:
-    "Patch an existing study and/or promote its lifecycle status. `patch` accepts a partial researchContext — only top-level subtrees (company / product / research / interviewSettings) you pass are touched; arrays (questions, concerns, signals, keyFeatures) replace atomically. `status: 'active'` promotes a draft to active and triggers strict validation of the merged context (the study must be fully populated to promote — incomplete drafts get rejected with a list of missing fields). Returns the updated study with the same wire shape as `get_study`. **NEVER call this tool without an actual patch or status change.** If the user just clicked 'Edit study' or asked to view, do NOT fire update_study with an empty patch and do NOT claim 'I've updated the study' in your reply — that's a phantom update that erodes trust. Wait for actual new information.",
+    "Patch an existing study and/or promote its lifecycle status. `patch` accepts a partial researchContext — only top-level subtrees (company / product / research / interviewSettings) you pass are touched; arrays (questions, concerns, signals, keyFeatures) replace atomically. **Setting `product.icp` triggers server-side ICP scoring** (used by `find_candidates` gating) and auto-renders the human-readable `summary` from the structured fields — you don't write the summary, just provide audience / problem / attributes (≥3 concrete dimensions). `status: 'active'` promotes a draft to active and triggers strict validation of the merged context (the study must be fully populated to promote — incomplete drafts get rejected with a list of missing fields). Returns the updated study with the same wire shape as `get_study`. **NEVER call this tool without an actual patch or status change.** If the user just clicked 'Edit study' or asked to view, do NOT fire update_study with an empty patch and do NOT claim 'I've updated the study' in your reply — that's a phantom update that erodes trust. Wait for actual new information.",
   inputSchema,
   async execute(args, ctx) {
     const existing = await getStudyById(ctx.supabase, args.studyId);
@@ -94,6 +95,18 @@ export const updateStudyTool: Tool<z.infer<typeof inputSchema>> = {
     const merged = args.patch
       ? mergeContext(existing.researchContext, args.patch)
       : existing.researchContext;
+
+    // Auto-render ICP summary on every save where icp was touched.
+    // Template-only — no LLM call. Keeps the human-readable label in
+    // sync with the structured fields without the agent having to
+    // hand-craft it on every patch.
+    if (merged.product?.icp) {
+      const icp = merged.product.icp;
+      merged.product = {
+        ...merged.product,
+        icp: { ...icp, summary: buildIcpSummary(icp) },
+      };
+    }
 
     const targetStatus = args.status ?? existing.status;
 

@@ -8,7 +8,16 @@ const ctx: ResearchContext = {
     name: 'Forms',
     description: 'form builder',
     keyFeatures: ['drag-drop', 'logic'],
-    targetAudience: 'PMs',
+    icp: {
+      audience: 'PMs',
+      problem: 'no fast way to build branching forms',
+      attributes: [
+        { name: 'role', value: 'PM' },
+        { name: 'industry', value: 'SaaS' },
+        { name: 'companyStage', value: 'Series A' },
+      ],
+      summary: 'PMs — PM · SaaS · Series A — no fast way to build branching forms',
+    },
   },
   research: {
     objective: 'understand onboarding pain',
