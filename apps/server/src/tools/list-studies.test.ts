@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from '../config';
-import { listBriefsTool } from './list-briefs';
+import { listStudiesTool } from './list-studies';
 
-vi.mock('../db/briefs', () => ({
-  listBriefsByOwner: vi.fn(async () => [
+vi.mock('../db/studies', () => ({
+  listStudiesByOwner: vi.fn(async () => [
     { id: 'b1', researchContext: { company: { name: 'Co' } }, createdAt: new Date('2026-04-20T10:00:00Z') },
   ]),
 }));
@@ -18,31 +18,31 @@ const cfg: Config = {
   resendWebhookSecret: '',
 };
 
-describe('listBriefsTool', () => {
+describe('listStudiesTool', () => {
   it('name + description + schema are set', () => {
-    expect(listBriefsTool.name).toBe('list_briefs');
-    expect(listBriefsTool.description).toBeTypeOf('string');
-    expect(listBriefsTool.inputSchema).toBeDefined();
+    expect(listStudiesTool.name).toBe('list_studies');
+    expect(listStudiesTool.description).toBeTypeOf('string');
+    expect(listStudiesTool.inputSchema).toBeDefined();
   });
 
   it('defaults limit to 20', async () => {
-    const { listBriefsByOwner } = await import('../db/briefs');
+    const { listStudiesByOwner } = await import('../db/studies');
     const ctx = { userId: 'u1', userEmail: null, supabase: {} as SupabaseClient, config: cfg };
-    await listBriefsTool.execute({}, ctx);
-    expect(listBriefsByOwner).toHaveBeenCalledWith(ctx.supabase, 'u1', 20);
+    await listStudiesTool.execute({}, ctx);
+    expect(listStudiesByOwner).toHaveBeenCalledWith(ctx.supabase, 'u1', 20);
   });
 
   it('honours custom limit', async () => {
-    const { listBriefsByOwner } = await import('../db/briefs');
+    const { listStudiesByOwner } = await import('../db/studies');
     const ctx = { userId: 'u1', userEmail: null, supabase: {} as SupabaseClient, config: cfg };
-    await listBriefsTool.execute({ limit: 5 }, ctx);
-    expect(listBriefsByOwner).toHaveBeenCalledWith(ctx.supabase, 'u1', 5);
+    await listStudiesTool.execute({ limit: 5 }, ctx);
+    expect(listStudiesByOwner).toHaveBeenCalledWith(ctx.supabase, 'u1', 5);
   });
 
   it('serializes dates to ISO strings in the wire shape', async () => {
     const ctx = { userId: 'u1', userEmail: null, supabase: {} as SupabaseClient, config: cfg };
-    const result = await listBriefsTool.execute({}, ctx);
-    expect(result[0].briefId).toBe('b1');
+    const result = await listStudiesTool.execute({}, ctx);
+    expect(result[0].studyId).toBe('b1');
     expect(typeof result[0].createdAt).toBe('string');
   });
 });

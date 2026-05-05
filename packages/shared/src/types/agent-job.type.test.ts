@@ -10,7 +10,7 @@ const validJob = {
   ownerId: '11111111-1111-1111-1111-111111111111',
   kind: 'discovery' as const,
   status: 'queued' as const,
-  inputJson: { briefId: 'b1', limit: 10 },
+  inputJson: { studyId: 'b1', limit: 10 },
   outputJson: null,
   error: null,
   costUsd: null,

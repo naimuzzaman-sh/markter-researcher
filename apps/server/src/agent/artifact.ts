@@ -17,8 +17,8 @@
 import type { ToolCallRecord } from './run-agent';
 
 export type ArtifactType =
-  | 'brief.list'
-  | 'brief.detail'
+  | 'study.list'
+  | 'study.detail'
   | 'candidate.list'
   | 'candidate.detail'
   | 'candidate.mutation'
@@ -34,7 +34,7 @@ export type Artifact = {
   data: unknown;
 };
 
-export type EntityKind = 'brief' | 'candidate' | 'contact' | 'interview' | 'job';
+export type EntityKind = 'study' | 'candidate' | 'contact' | 'interview' | 'job';
 
 export type ScopeEntity = {
   kind: EntityKind;
@@ -45,7 +45,7 @@ export type ScopeEntity = {
 /**
  * Flat list of entities a turn surfaced. Round-trips on assistant turns.
  * Lists contribute one entity per item; details contribute the focal
- * entity plus its parent (e.g. candidate.detail → candidate + brief).
+ * entity plus its parent (e.g. candidate.detail → candidate + study).
  */
 export type ArtifactRef = {
   type: ArtifactType;
@@ -57,20 +57,20 @@ export type ArtifactRef = {
  * If a tool name isn't here, its result never surfaces as an artifact.
  */
 const TOOL_TO_ARTIFACT_TYPE: Record<string, ArtifactType> = {
-  list_briefs: 'brief.list',
-  get_brief: 'brief.detail',
-  // `create_brief` and `update_brief` are intentionally NOT in this map.
+  list_studies: 'study.list',
+  get_study: 'study.detail',
+  // `create_study` and `update_study` are intentionally NOT in this map.
   // They're internal mechanism in the iterative draft flow — every time
-  // the user adds a piece of info, the agent calls update_brief to layer
-  // it onto the row. Surfacing a brief.detail card after each call would
+  // the user adds a piece of info, the agent calls update_study to layer
+  // it onto the row. Surfacing a study.detail card after each call would
   // spam the chat with redundant cards and visually interrupt what's
   // really a continuous conversation.
   //
-  // The user-facing path to view a brief is `preview_brief({ briefId })`
-  // (during drafting) or `get_brief({ briefId })` (after / for editing).
+  // The user-facing path to view a study is `preview_study({ studyId })`
+  // (during drafting) or `get_study({ studyId })` (after / for editing).
   // Both still surface their results as cards.
-  preview_brief: 'brief.detail',
-  list_candidates_for_brief: 'candidate.list',
+  preview_study: 'study.detail',
+  list_candidates_for_study: 'candidate.list',
   get_candidate: 'candidate.detail',
   approve_candidate: 'candidate.mutation',
   reject_candidate: 'candidate.mutation',
@@ -96,25 +96,25 @@ export function pickArtifact(toolCalls: ToolCallRecord[]): Artifact | null {
 }
 
 /**
- * Tools that touch a brief but DON'T produce a visible card. Their
+ * Tools that touch a study but DON'T produce a visible card. Their
  * results still need to flow into `artifactRef.entities` so future
- * turns know which brief is in scope (otherwise the agent picks
- * stale ids from earlier list/get calls and `update_brief` fails
- * with "Brief not found").
+ * turns know which study is in scope (otherwise the agent picks
+ * stale ids from earlier list/get calls and `update_study` fails
+ * with "Study not found").
  *
  * Kept separate from `TOOL_TO_ARTIFACT_TYPE` because `pickArtifact`
  * MUST NOT return these — they'd render as redundant cards.
  */
-const SCOPE_ONLY_TOOLS: Record<string, ArtifactType> = {
-  create_brief: 'brief.detail',
-  update_brief: 'brief.detail',
+const SCOPE_ONLY_STUDY_TOOLS: Record<string, ArtifactType> = {
+  create_study: 'study.detail',
+  update_study: 'study.detail',
 };
 
 /**
  * Build the artifactRef for a turn. Two layers:
  *   1. The visible artifact (if any) contributes its entities.
- *   2. Scope-only tools (create_brief / update_brief) ALSO contribute
- *      — their briefId enters the chain even when no card renders.
+ *   2. Scope-only tools (create_study / update_study) ALSO contribute
+ *      — their studyId enters the chain even when no card renders.
  *
  * Returns null only when nothing in the turn referenced an entity.
  */
@@ -133,7 +133,7 @@ export function buildArtifactRef(
 
   for (const call of toolCalls) {
     if (call.error) continue;
-    const scopeType = SCOPE_ONLY_TOOLS[call.name];
+    const scopeType = SCOPE_ONLY_STUDY_TOOLS[call.name];
     if (!scopeType) continue;
     const fromCall = artifactToRef({ type: scopeType, data: call.result });
     entities.push(...fromCall.entities);
@@ -146,7 +146,7 @@ export function buildArtifactRef(
   // wins for name updates). Preserves overall last-seen order.
   const seen = new Map<string, ScopeEntity>();
   for (const e of entities) seen.set(`${e.kind}:${e.id}`, e);
-  return { type: primaryType ?? 'brief.detail', entities: Array.from(seen.values()) };
+  return { type: primaryType ?? 'study.detail', entities: Array.from(seen.values()) };
 }
 
 /**
@@ -159,33 +159,33 @@ export function artifactToRef(artifact: Artifact): ArtifactRef {
   const data = artifact.data;
 
   switch (artifact.type) {
-    case 'brief.list': {
-      // Wire shape: BriefListItem[]
+    case 'study.list': {
+      // Wire shape: StudyListItem[]
       forEachItem(data, (item) => {
-        const id = pickString(item.briefId);
+        const id = pickString(item.studyId);
         const name = pickString(item.productName);
-        if (id) entities.push({ kind: 'brief', id, name });
+        if (id) entities.push({ kind: 'study', id, name });
       });
       break;
     }
-    case 'brief.detail': {
-      // Wire shape from get_brief / create_brief / update_brief:
-      // `{ briefId, researchContext, createdAt }`. preview_brief returns
-      // a draft without a briefId — we skip the entity in that case.
+    case 'study.detail': {
+      // Wire shape from get_study / create_study / update_study:
+      // `{ studyId, researchContext, createdAt }`. preview_study returns
+      // a draft without a studyId — we skip the entity in that case.
       const obj = pickObject(data) ?? {};
-      const id = pickString(obj.briefId);
+      const id = pickString(obj.studyId);
       const ctx = pickObject(obj.researchContext);
       const product = pickObject(ctx?.product);
       const name = pickString(product?.name);
-      if (id) entities.push({ kind: 'brief', id, name });
+      if (id) entities.push({ kind: 'study', id, name });
       break;
     }
     case 'candidate.list': {
-      // Wire shape: { briefId, briefName, candidates: [...] } OR legacy array
+      // Wire shape: { studyId, studyName, candidates: [...] } OR legacy array
       const obj = pickObject(data);
-      const briefId = pickString(obj?.briefId);
-      const briefName = pickString(obj?.briefName);
-      if (briefId) entities.push({ kind: 'brief', id: briefId, name: briefName });
+      const studyId = pickString(obj?.studyId);
+      const studyName = pickString(obj?.studyName);
+      if (studyId) entities.push({ kind: 'study', id: studyId, name: studyName });
       const items = Array.isArray(obj?.candidates)
         ? (obj?.candidates as unknown[])
         : Array.isArray(data)
@@ -204,12 +204,12 @@ export function artifactToRef(artifact: Artifact): ArtifactRef {
     case 'candidate.mutation': {
       const obj = pickObject(data);
       const candidateId = pickString(obj?.candidateId);
-      const briefId = pickString(obj?.briefId);
-      const briefName = pickString(obj?.briefName);
+      const studyId = pickString(obj?.studyId);
+      const studyName = pickString(obj?.studyName);
       const contact = pickObject(obj?.contact);
       const candidateName = pickString(contact?.name);
       if (candidateId) entities.push({ kind: 'candidate', id: candidateId, name: candidateName });
-      if (briefId) entities.push({ kind: 'brief', id: briefId, name: briefName });
+      if (studyId) entities.push({ kind: 'study', id: studyId, name: studyName });
       break;
     }
     case 'contact.list': {
@@ -230,9 +230,9 @@ export function artifactToRef(artifact: Artifact): ArtifactRef {
     }
     case 'interview.list': {
       const obj = pickObject(data);
-      const briefId = pickString(obj?.briefId);
-      const briefName = pickString(obj?.briefName);
-      if (briefId) entities.push({ kind: 'brief', id: briefId, name: briefName });
+      const studyId = pickString(obj?.studyId);
+      const studyName = pickString(obj?.studyName);
+      if (studyId) entities.push({ kind: 'study', id: studyId, name: studyName });
       const items = Array.isArray(obj?.interviews)
         ? (obj?.interviews as unknown[])
         : Array.isArray(data)
@@ -249,45 +249,45 @@ export function artifactToRef(artifact: Artifact): ArtifactRef {
     case 'interview.detail': {
       const obj = pickObject(data);
       const interviewId = pickString(obj?.interviewId);
-      const briefId = pickString(obj?.briefId);
-      const briefName = pickString(obj?.briefName);
+      const studyId = pickString(obj?.studyId);
+      const studyName = pickString(obj?.studyName);
       const contactName = pickString(obj?.contactName);
       if (interviewId) entities.push({ kind: 'interview', id: interviewId, name: contactName });
-      if (briefId) entities.push({ kind: 'brief', id: briefId, name: briefName });
+      if (studyId) entities.push({ kind: 'study', id: studyId, name: studyName });
       break;
     }
     case 'job.status': {
       const obj = pickObject(data);
       const jobId = pickString(obj?.jobId);
-      const briefId = pickString(obj?.briefId);
-      const briefName = pickString(obj?.briefName);
+      const studyId = pickString(obj?.studyId);
+      const studyName = pickString(obj?.studyName);
       if (jobId) entities.push({ kind: 'job', id: jobId });
-      if (briefId) entities.push({ kind: 'brief', id: briefId, name: briefName });
+      if (studyId) entities.push({ kind: 'study', id: studyId, name: studyName });
       break;
     }
     case 'dashboard': {
-      // Capture every brief + interview the dashboard surfaces so the
+      // Capture every study + interview the dashboard surfaces so the
       // agent can resolve subsequent name-based references without a
       // re-list (e.g. user types "approve Tania" right after seeing the
       // dashboard's recent-interviews row).
       const obj = pickObject(data) ?? {};
-      const recentBriefs = Array.isArray(obj.recentBriefs)
-        ? (obj.recentBriefs as unknown[])
+      const recentStudies = Array.isArray(obj.recentStudies)
+        ? (obj.recentStudies as unknown[])
         : [];
-      for (const raw of recentBriefs) {
+      for (const raw of recentStudies) {
         const item = pickObject(raw);
-        const id = pickString(item?.briefId);
+        const id = pickString(item?.studyId);
         const name = pickString(item?.productName);
-        if (id) entities.push({ kind: 'brief', id, name });
+        if (id) entities.push({ kind: 'study', id, name });
       }
-      const pendingByBrief = Array.isArray(obj.pendingByBrief)
-        ? (obj.pendingByBrief as unknown[])
+      const pendingByStudy = Array.isArray(obj.pendingByStudy)
+        ? (obj.pendingByStudy as unknown[])
         : [];
-      for (const raw of pendingByBrief) {
+      for (const raw of pendingByStudy) {
         const item = pickObject(raw);
-        const id = pickString(item?.briefId);
-        const name = pickString(item?.briefName);
-        if (id) entities.push({ kind: 'brief', id, name });
+        const id = pickString(item?.studyId);
+        const name = pickString(item?.studyName);
+        if (id) entities.push({ kind: 'study', id, name });
       }
       const recentInterviews = Array.isArray(obj.recentInterviews)
         ? (obj.recentInterviews as unknown[])
@@ -331,7 +331,7 @@ function forEachItem(
 }
 
 const ID_FIELD: Record<EntityKind, string> = {
-  brief: 'briefId',
+  study: 'studyId',
   candidate: 'candidateId',
   contact: 'contactId',
   interview: 'interviewId',

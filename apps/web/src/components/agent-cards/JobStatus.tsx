@@ -11,9 +11,9 @@ type JobResult = {
   status: 'queued' | 'running' | 'succeeded' | 'failed';
   startedAt?: string | null;
   finishedAt?: string | null;
-  input?: { briefId?: string } | null;
-  briefId?: string | null;
-  briefName?: string | null;
+  input?: { studyId?: string } | null;
+  studyId?: string | null;
+  studyName?: string | null;
   error?: string | null;
   next?: string;
 };
@@ -44,9 +44,9 @@ export function JobStatus({ result, onAction }: CardRendererProps) {
   const kind: JobKind = job.kind ?? 'discovery';
   const kicker = `JOB · ${kind.toUpperCase()}`;
   const elapsed = job.startedAt ? formatRelativeTime(job.startedAt) : 'just now';
-  const briefId = job.briefId ?? job.input?.briefId ?? null;
-  const briefName = job.briefName ?? null;
-  const briefSuffix = briefName ? ` for ${briefName}` : '';
+  const studyId = job.studyId ?? job.input?.studyId ?? null;
+  const studyName = job.studyName ?? null;
+  const studySuffix = studyName ? ` for ${studyName}` : '';
   const jobId = job.jobId;
 
   if (job.status === 'failed') {
@@ -60,8 +60,8 @@ export function JobStatus({ result, onAction }: CardRendererProps) {
           <ActionPill
             action={{
               kind: 'prompt',
-              text: briefName
-                ? `Retry candidate sourcing for ${briefName}`
+              text: studyName
+                ? `Retry candidate sourcing for ${studyName}`
                 : 'Retry that operation',
             }}
             onAction={onAction}
@@ -78,27 +78,27 @@ export function JobStatus({ result, onAction }: CardRendererProps) {
   }
 
   if (job.status === 'succeeded') {
-    // Direct tool action when we know the briefId; fall back to a prompt
-    // so the LLM can find the most-recent brief if scope is missing.
-    const openResultsAction = briefId
+    // Direct tool action when we know the studyId; fall back to a prompt
+    // so the LLM can find the most-recent study if scope is missing.
+    const openResultsAction = studyId
       ? ({
           kind: 'tool' as const,
-          toolName: 'list_candidates_for_brief',
-          toolArgs: { briefId },
-          displayText: briefName
-            ? `List candidates for ${briefName}`
-            : 'List candidates for the latest brief',
+          toolName: 'list_candidates_for_study',
+          toolArgs: { studyId },
+          displayText: studyName
+            ? `List candidates for ${studyName}`
+            : 'List candidates for the latest study',
         })
       : ({
           kind: 'prompt' as const,
-          text: 'List candidates for the latest brief',
+          text: 'List candidates for the latest study',
         });
     return (
       <Panel
         variant="tight"
         kicker={kicker}
         title={KIND_LABELS[kind].succeeded}
-        subtitle={`succeeded${briefSuffix} · started ${elapsed}`}
+        subtitle={`succeeded${studySuffix} · started ${elapsed}`}
         actions={
           <ActionPill variant="solid" action={openResultsAction} onAction={onAction}>
             Open results →
@@ -119,8 +119,8 @@ export function JobStatus({ result, onAction }: CardRendererProps) {
       title={KIND_LABELS[kind][isRunning ? 'running' : 'queued']}
       subtitle={
         isRunning
-          ? `running${briefSuffix} · started ${elapsed}`
-          : `queued${briefSuffix} · ${elapsed}`
+          ? `running${studySuffix} · started ${elapsed}`
+          : `queued${studySuffix} · ${elapsed}`
       }
       actions={
         <ActionPill
@@ -128,8 +128,8 @@ export function JobStatus({ result, onAction }: CardRendererProps) {
             kind: 'tool',
             toolName: 'get_job_status',
             toolArgs: { jobId },
-            displayText: briefName
-              ? `Check the status of the candidate sourcing job for ${briefName}`
+            displayText: studyName
+              ? `Check the status of the candidate sourcing job for ${studyName}`
               : 'Check the status of the candidate sourcing job',
           }}
           onAction={onAction}

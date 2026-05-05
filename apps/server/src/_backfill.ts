@@ -14,9 +14,9 @@
  *      already-analyzed rows are skipped. Picks up rows recovered
  *      in pass 0.
  *
- *   2. Per-brief synthesis — for every brief that has at least one
- *      completed interview, run `summarizeBrief` to compute (or
- *      refresh) `briefs.results`.
+ *   2. Per-study synthesis — for every study that has at least one
+ *      completed interview, run `summarizeStudy` to compute (or
+ *      refresh) `studies.results`.
  *
  * Run from repo root:
  *   pnpm --filter server exec tsx src/_backfill.ts
@@ -29,7 +29,7 @@ import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { loadConfig } from './config';
 import { analyzeTranscript } from './agent/analyze-transcript';
-import { summarizeBrief } from './agent/summarize-brief';
+import { summarizeStudy } from './agent/summarize-study';
 import type { CallAnalysis, ResearchContext, TranscriptEntry } from '@mirrars/shared';
 
 // Load env from BOTH locations: apps/server/.env (server-scoped keys)
@@ -107,14 +107,14 @@ async function main() {
 
   type InterviewRow = {
     id: string;
-    brief_id: string;
+    study_id: string;
     transcript: TranscriptEntry[] | null;
     research_context: ResearchContext | null;
   };
 
   const { data: missing, error: listErr } = await supabase
     .from('interviews')
-    .select('id, brief_id, transcript, research_context')
+    .select('id, study_id, transcript, research_context')
     .eq('status', 'completed')
     .is('analysis', null);
   if (listErr) {
@@ -166,45 +166,45 @@ async function main() {
     `  pass 1 done — ${analysesWritten} written, ${analysesSkipped} skipped, ${analysesFailed} failed`,
   );
 
-  // ──────────────────────── Pass 2: brief summaries ────────────────────────
-  console.log('\n▶ pass 2: backfilling per-brief summaries');
+  // ──────────────────────── Pass 2: study summaries ────────────────────────
+  console.log('\n▶ pass 2: backfilling per-study summaries');
 
-  const { data: briefIdRows, error: briefListErr } = await supabase
+  const { data: studyIdRows, error: studyListErr } = await supabase
     .from('interviews')
-    .select('brief_id')
+    .select('study_id')
     .eq('status', 'completed')
-    .not('brief_id', 'is', null);
-  if (briefListErr) {
-    console.error('  ✗ failed to list brief_ids:', briefListErr.message);
+    .not('study_id', 'is', null);
+  if (studyListErr) {
+    console.error('  ✗ failed to list study_ids:', studyListErr.message);
     process.exit(1);
   }
-  const briefIds = Array.from(
+  const studyIds = Array.from(
     new Set(
-      (briefIdRows ?? [])
-        .map((r) => (r as { brief_id: string | null }).brief_id)
+      (studyIdRows ?? [])
+        .map((r) => (r as { study_id: string | null }).study_id)
         .filter((id): id is string => typeof id === 'string'),
     ),
   );
-  console.log(`  found ${briefIds.length} brief(s) with completed interviews`);
+  console.log(`  found ${studyIds.length} study(ies) with completed interviews`);
 
   let summariesWritten = 0;
   let summariesFailed = 0;
-  for (const briefId of briefIds) {
+  for (const studyId of studyIds) {
     try {
-      const result = await summarizeBrief({
+      const result = await summarizeStudy({
         apiKey: config.geminiApiKey,
         supabase,
-        briefId,
+        studyId,
       });
       if (result) {
         summariesWritten += 1;
-        console.log(`  ✓  ${briefId}: synthesis (${result.interviewCount} interview(s))`);
+        console.log(`  ✓  ${studyId}: synthesis (${result.interviewCount} interview(s))`);
       } else {
-        console.log(`  ⏭  ${briefId}: no completed interviews after filter, skip`);
+        console.log(`  ⏭  ${studyId}: no completed interviews after filter, skip`);
       }
     } catch (err) {
       summariesFailed += 1;
-      console.warn(`  ⚠  ${briefId}: summarizeBrief failed —`, err instanceof Error ? err.message : err);
+      console.warn(`  ⚠  ${studyId}: summarizeStudy failed —`, err instanceof Error ? err.message : err);
     }
   }
   console.log(`  pass 2 done — ${summariesWritten} written, ${summariesFailed} failed`);

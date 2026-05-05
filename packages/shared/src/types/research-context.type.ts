@@ -55,14 +55,14 @@ const researchContextSchema = z.object({
 });
 
 /**
- * Patch schema for PATCH /briefs/:id. Every top-level key is optional;
+ * Patch schema for PATCH /studies/:id. Every top-level key is optional;
  * within each subtree every field is optional too, so callers can send as
  * little as `{ research: { objective: "new goal" } }`. Arrays (questions,
  * concerns, signals, keyFeatures) are treated as atomic — if present in the
  * patch, they replace the existing array wholesale. Per-item merging is not
  * supported.
  */
-const briefPatchSchema = z.object({
+const studyPatchSchema = z.object({
   company: companySchema.partial().optional(),
   product: productSchema.partial().optional(),
   research: z
@@ -80,12 +80,12 @@ const briefPatchSchema = z.object({
 type ResearchContext = z.infer<typeof researchContextSchema>;
 type ResearchQuestion = z.infer<typeof researchQuestionSchema>;
 type QuestionCategory = z.infer<typeof questionCategorySchema>;
-type BriefPatch = z.infer<typeof briefPatchSchema>;
+type StudyPatch = z.infer<typeof studyPatchSchema>;
 
 export {
   researchContextSchema,
   researchQuestionSchema,
   questionCategorySchema,
-  briefPatchSchema,
+  studyPatchSchema,
 };
-export type { ResearchContext, ResearchQuestion, QuestionCategory, BriefPatch };
+export type { ResearchContext, ResearchQuestion, QuestionCategory, StudyPatch };

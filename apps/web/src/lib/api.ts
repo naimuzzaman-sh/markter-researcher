@@ -6,7 +6,10 @@ import { supabase } from '@/lib/supabase';
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
 const CALLS_BASE = `${API_BASE}/calls`;
-const BRIEFS_BASE = `${API_BASE}/briefs`;
+// Public-read URL for studies. Server also keeps `/briefs/<id>` as a
+// legacy alias so old invite emails (issued before the brief→study
+// rename) don't 404 — but new code should always hit `/studies/<id>`.
+const STUDIES_BASE = `${API_BASE}/studies`;
 const AUTH_DEVICE_BASE = `${API_BASE}/auth/device`;
 const CHAT_URL = `${API_BASE}/chat`;
 
@@ -14,7 +17,7 @@ const CHAT_URL = `${API_BASE}/chat`;
  * Returns an Authorization header object if a Supabase session exists,
  * otherwise an empty object. Used by researcher-only endpoints
  * (`postChat`, `authorizeDevice`, `denyDevice`). Interviewee routes
- * (`getBrief`, `startCall`, `endCall`) deliberately DON'T attach auth —
+ * (`getStudy`, `startCall`, `endCall`) deliberately DON'T attach auth —
  * those users are anonymous.
  */
 async function authHeader(): Promise<Record<string, string>> {
@@ -26,7 +29,7 @@ async function authHeader(): Promise<Record<string, string>> {
 type StartCallResponse = {
   callId: string;
   agentId: string;
-  briefId: string;
+  studyId: string;
   signedUrl: string;
   status: string;
 };
@@ -48,7 +51,7 @@ type CallAnalysis = {
 type CallRecord = {
   id: string;
   agentId: string;
-  briefId: string;
+  studyId: string;
   conversationId: string | null;
   status: 'created' | 'in-progress' | 'processing' | 'completed' | 'failed';
   context: ResearchContext;
@@ -58,8 +61,8 @@ type CallRecord = {
   completedAt: string | null;
 };
 
-type GetBriefResponse = {
-  briefId: string;
+type GetStudyResponse = {
+  studyId: string;
   researchContext: ResearchContext;
   createdAt: string;
 };
@@ -85,23 +88,23 @@ async function readError(response: Response, fallback: string): Promise<string> 
   return `${fallback} (HTTP ${response.status})`;
 }
 
-async function getBrief(briefId: string): Promise<GetBriefResponse> {
-  const response = await fetch(`${BRIEFS_BASE}/${briefId}`);
-  if (!response.ok) throw new Error(await readError(response, 'Failed to load brief'));
-  return response.json() as Promise<GetBriefResponse>;
+async function getStudy(studyId: string): Promise<GetStudyResponse> {
+  const response = await fetch(`${STUDIES_BASE}/${studyId}`);
+  if (!response.ok) throw new Error(await readError(response, 'Failed to load study'));
+  return response.json() as Promise<GetStudyResponse>;
 }
 
 async function startCall(
-  briefId: string,
+  studyId: string,
   candidateId?: string,
 ): Promise<StartCallResponse> {
   const response = await fetch(`${CALLS_BASE}/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // candidateId is forwarded only when the interviewee landed via an
-    // invite URL (`/interview/<briefId>?cid=...`); the server uses it to
+    // invite URL (`/interview/<studyId>?cid=...`); the server uses it to
     // attribute the interview back to the candidate row when the call ends.
-    body: JSON.stringify(candidateId ? { briefId, candidateId } : { briefId }),
+    body: JSON.stringify(candidateId ? { studyId, candidateId } : { studyId }),
   });
   if (!response.ok) throw new Error(await readError(response, 'Failed to start call'));
   return response.json() as Promise<StartCallResponse>;
@@ -157,8 +160,8 @@ async function denyDevice(userCode: string): Promise<void> {
  * `reply` + (optionally) `artifact`. Everything else is internal mechanism.
  */
 type ArtifactType =
-  | 'brief.list'
-  | 'brief.detail'
+  | 'study.list'
+  | 'study.detail'
   | 'candidate.list'
   | 'candidate.detail'
   | 'candidate.mutation'
@@ -174,7 +177,7 @@ type Artifact = {
   data: unknown;
 };
 
-type EntityKind = 'brief' | 'candidate' | 'contact' | 'interview' | 'job';
+type EntityKind = 'study' | 'candidate' | 'contact' | 'interview' | 'job';
 
 type ScopeEntity = {
   kind: EntityKind;
@@ -234,11 +237,11 @@ type RunToolResponse = {
  * synthetic assistant turn appears identical to an LLM-produced one.
  *
  * `displayText` is optional — when supplied it gets persisted as the
- * implied user turn for brief-anchored chats so the audit trail reads
+ * implied user turn for study-anchored chats so the audit trail reads
  * sensibly ("List candidates for Dynt" → list output) instead of a
  * bare assistant turn appearing without preceding context. The server
  * decides whether to persist based on whether the tool references a
- * brief; the client doesn't track anchor state.
+ * study; the client doesn't track anchor state.
  */
 async function runTool(
   name: string,
@@ -279,17 +282,17 @@ type PillAction =
    */
   | { kind: 'navigate'; url: string }
   /**
-   * Resume editing a brief. Replaces current chat turns with the
-   * brief's persisted chat_history, then sends "Edit brief: <name>"
+   * Resume editing a study. Replaces current chat turns with the
+   * study's persisted chat_history, then sends "Edit study: <name>"
    * as the next user message so the agent has the full prior context
    * AND a clear instruction to keep going. Replacement is intentional
-   * — the user is switching focus to this brief's conversation;
-   * pre-existing universal-chat turns aren't part of this brief's
+   * — the user is switching focus to this study's conversation;
+   * pre-existing universal-chat turns aren't part of this study's
    * thread.
    */
   | {
-      kind: 'edit-brief';
-      briefId: string;
+      kind: 'edit-study';
+      studyId: string;
       productName: string;
       chatHistory: Array<{
         role: 'user' | 'assistant';
@@ -302,7 +305,7 @@ type PillAction =
 export {
   startCall,
   endCall,
-  getBrief,
+  getStudy,
   authorizeDevice,
   denyDevice,
   postChat,
@@ -312,7 +315,7 @@ export type {
   StartCallResponse,
   CallRecord,
   CallAnalysis,
-  GetBriefResponse,
+  GetStudyResponse,
   ChatMessage,
   ChatResponse,
   RunToolResponse,

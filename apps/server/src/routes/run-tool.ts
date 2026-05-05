@@ -8,8 +8,8 @@ import { AppError } from '../lib/errors';
 import { tools as toolRegistry } from '../tools/index';
 import { artifactToRef, pickArtifact } from '../agent/artifact';
 import { replyForArtifact } from '../agent/reply-template';
-import { appendBriefChat } from '../db/briefs';
-import type { BriefChatMessage } from '@mirrars/shared';
+import { appendStudyChat } from '../db/studies';
+import type { StudyChatMessage } from '@mirrars/shared';
 
 const bodySchema = z.object({
   name: z.string().min(1),
@@ -81,18 +81,18 @@ export function createRunToolRoute(deps: {
     const reply = artifact ? replyForArtifact(artifact) : '';
 
     // Persistence anchor — derived from the tool's args + result.
-    // We persist ONLY for tools that meaningfully change the brief or
-    // its narrative. View-only clicks (`get_brief`, `list_*`) clutter
-    // chat_history with redundant "Show me brief: X" + detail-card
+    // We persist ONLY for tools that meaningfully change the study or
+    // its narrative. View-only clicks (`get_study`, `list_*`) clutter
+    // chat_history with redundant "Show me study: X" + detail-card
     // turns that, when re-hydrated on Edit, look like a loop. Mutators
     // (create / update / find_candidates / approve / reject / invite)
     // earn their place in the audit trail.
-    const persistBriefId = TOOL_PERSISTS_TO_BRIEF.has(parsed.data.name)
-      ? findBriefAnchor(parsed.data.args, result)
+    const persistStudyId = TOOL_PERSISTS_TO_STUDY.has(parsed.data.name)
+      ? findStudyAnchor(parsed.data.args, result)
       : null;
 
-    if (persistBriefId) {
-      const messagesToAppend: BriefChatMessage[] = [];
+    if (persistStudyId) {
+      const messagesToAppend: StudyChatMessage[] = [];
       if (parsed.data.displayText) {
         messagesToAppend.push({ role: 'user', content: parsed.data.displayText });
       }
@@ -103,10 +103,10 @@ export function createRunToolRoute(deps: {
         ...(artifactRef ? { artifactRef } : {}),
       });
       try {
-        await appendBriefChat(deps.supabase, persistBriefId, userId, messagesToAppend);
+        await appendStudyChat(deps.supabase, persistStudyId, userId, messagesToAppend);
       } catch (err) {
         deps.logger.warn('run-tool persistence failed', {
-          briefId: persistBriefId,
+          studyId: persistStudyId,
           err: err instanceof Error ? err.message : String(err),
         });
       }
@@ -117,16 +117,16 @@ export function createRunToolRoute(deps: {
 }
 
 /**
- * Pill clicks that meaningfully change the brief or its working
+ * Pill clicks that meaningfully change the study or its working
  * narrative — these persist to chat_history. View-only clicks
- * (`get_brief`, `list_*`) are deliberately excluded: re-hydrating
- * them on Edit produces a wall of redundant "Show me brief: X" +
+ * (`get_study`, `list_*`) are deliberately excluded: re-hydrating
+ * them on Edit produces a wall of redundant "Show me study: X" +
  * detail-card turns that look like a runaway loop.
  */
-const TOOL_PERSISTS_TO_BRIEF = new Set([
-  'create_brief',
-  'update_brief',
-  'preview_brief',
+const TOOL_PERSISTS_TO_STUDY = new Set([
+  'create_study',
+  'update_study',
+  'preview_study',
   'find_candidates',
   'approve_candidate',
   'reject_candidate',
@@ -134,15 +134,15 @@ const TOOL_PERSISTS_TO_BRIEF = new Set([
 ]);
 
 /**
- * Pull a briefId off either the input args (most brief-related tools
+ * Pull a studyId off either the input args (most study-related tools
  * take it directly) or the result (create / preview return it). Falls
- * back to null when the tool doesn't reference a brief.
+ * back to null when the tool doesn't reference a study.
  */
-function findBriefAnchor(args: Record<string, unknown>, result: unknown): string | null {
-  const fromArgs = args.briefId;
+function findStudyAnchor(args: Record<string, unknown>, result: unknown): string | null {
+  const fromArgs = args.studyId;
   if (typeof fromArgs === 'string') return fromArgs;
   if (result && typeof result === 'object') {
-    const fromResult = (result as { briefId?: unknown }).briefId;
+    const fromResult = (result as { studyId?: unknown }).studyId;
     if (typeof fromResult === 'string') return fromResult;
   }
   return null;

@@ -9,7 +9,7 @@ const inputSchema = z.object({
 export const listContactsTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'list_contacts',
   description:
-    'Return all contacts you own, newest first. Contacts are org-wide across all briefs. Use `get_contact` to drill into one.',
+    "List the current user's contacts (people who could be interviewed), newest first. Each item is a summary: contactId, name, title, companyName/companyDomain, linkedinUrl, email, location, createdAt. Contacts are org-wide and outlive any single study — the same person can appear as a candidate across multiple studies. Default limit 20, max 100. Use `get_contact` for the full profile snapshot, or `get_candidate` if you want the candidate-side view (status, study link, matchScore).",
   inputSchema,
   async execute(args, ctx) {
     const contacts = await listContactsByOwner(ctx.supabase, ctx.userId, args.limit ?? 20);

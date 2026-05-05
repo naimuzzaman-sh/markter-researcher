@@ -3,20 +3,20 @@
  * background execution of a `find_candidates` job.
  *
  * Flow:
- *   1. Load brief by id (ownership already verified at enqueue time)
- *   2. Build a search query from the brief's research context
+ *   1. Load study by id (ownership already verified at enqueue time)
+ *   2. Build a search query from the study's research context
  *   3. EXA `category: 'linkedin profile'` + highlights query = relevant
  *      person profiles + per-result "why-this-match" excerpts
  *   4. Prefer Exa's structured `author` for the contact name; fall back
  *      to the legacy title regex (and finally the URL slug) when missing
  *   5. Batch-embed all profile docs in a single OpenAI call
- *   6. Bulk-upsert contacts, then bulk-insert brief_candidate rows
+ *   6. Bulk-upsert contacts, then bulk-insert study_candidate rows
  *   7. Return summary { candidateCount, skipped, errors, errorSamples, tokens }
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Config } from '../config';
-import { getBriefById } from '../db/briefs';
+import { getStudyById } from '../db/studies';
 import { bulkUpsertContactsByLinkedIn } from '../db/contacts';
 import { insertCandidates } from '../db/candidates';
 import { exaSearch, type ExaSearchResult } from '../external/exa';
@@ -24,7 +24,7 @@ import { embedTexts } from '../external/openai';
 import { AppError } from '../lib/errors';
 
 type DiscoveryInput = {
-  briefId: string;
+  studyId: string;
   limit: number;
   extraCriteria?: string;
 };
@@ -139,7 +139,7 @@ function extractProfile(result: ExaSearchResult): Parsed {
 /**
  * Compose the document we embed for each contact. Includes the highlight
  * excerpts (when available) so the embedding reflects the parts of the
- * profile that actually matched the brief — not just the page-wide
+ * profile that actually matched the study — not just the page-wide
  * snippet.
  */
 function buildEmbedDoc(parsed: Parsed, result: ExaSearchResult): string {
@@ -158,12 +158,12 @@ export async function runDiscovery(
   ownerId: string,
   input: DiscoveryInput,
 ): Promise<DiscoveryOutput> {
-  const brief = await getBriefById(supabase, input.briefId);
-  if (!brief) throw new AppError('not_found', 'Brief not found');
+  const study = await getStudyById(supabase, input.studyId);
+  if (!study) throw new AppError('not_found', 'Study not found');
 
-  // Build the search query from the brief's full ICP context, not just
+  // Build the search query from the study's full ICP context, not just
   // a two-token concat. Neural retrieval rewards prose-like queries.
-  const ctx = brief.researchContext;
+  const ctx = study.researchContext;
   const queryParts = [
     ctx.product?.targetAudience,
     ctx.company?.industry,
@@ -242,7 +242,7 @@ export async function runDiscovery(
       continue;
     }
     candidateInputs.push({
-      briefId: input.briefId,
+      studyId: input.studyId,
       contactId: contact.id,
       source: 'discovery',
       matchScore: result.score,
@@ -250,8 +250,8 @@ export async function runDiscovery(
     });
   }
 
-  // `insertCandidates` is idempotent on (brief_id, contact_id) — if
-  // discovery re-surfaces a person already linked to this brief, the
+  // `insertCandidates` is idempotent on (study_id, contact_id) — if
+  // discovery re-surfaces a person already linked to this study, the
   // duplicate is silently dropped server-side. The gap between rows
   // we asked to insert and ids we got back becomes additional skipped.
   const insertedIds = await insertCandidates(supabase, candidateInputs);

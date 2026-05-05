@@ -3,8 +3,8 @@ import { ActionPill } from './ActionPill';
 import { formatRelativeTime } from './format-relative-time';
 import type { CardRendererProps } from './types';
 
-type BriefListItem = {
-  briefId: string;
+type StudyListItem = {
+  studyId: string;
   productName: string;
   companyName: string;
   industry: string;
@@ -14,22 +14,22 @@ type BriefListItem = {
   createdAt: string;
 };
 
-export function BriefList({ result, onAction }: CardRendererProps) {
-  const items = result as BriefListItem[];
+export function StudyList({ result, onAction }: CardRendererProps) {
+  const items = result as StudyListItem[];
   if (items.length === 0) {
     return (
       <Panel
         variant="empty"
         kicker="NOTHING HERE"
-        title="Start your first brief"
+        title="Start your first study"
         subtitle="I'll walk you through company → product → questions in a few turns."
         actions={
           <ActionPill
             variant="solid"
-            action={{ kind: 'prompt', text: 'Create a new brief' }}
+            action={{ kind: 'prompt', text: 'Create a new study' }}
             onAction={onAction}
           >
-            Create brief →
+            Create study →
           </ActionPill>
         }
       >
@@ -42,29 +42,29 @@ export function BriefList({ result, onAction }: CardRendererProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {items.map((b, i) => {
         const subtitleParts = [b.companyName, b.industry].filter(Boolean);
-        const productName = b.productName || 'Untitled brief';
+        const productName = b.productName || 'Untitled study';
         const isDraft = b.status === 'draft';
-        // Click → fetch the brief detail (same get_brief tool as a
-        // direct "show me brief X" prompt). The detail card renders
+        // Click → fetch the study detail (same get_study tool as a
+        // direct "show me study X" prompt). The detail card renders
         // inline in chat with action pills (Edit, Find candidates, …).
         // We deliberately don't navigate / change route — keeping the
         // chat thread continuous matters more than URL-anchoring.
         return (
           <Panel
-            key={b.briefId}
+            key={b.studyId}
             role="button"
             onClick={() =>
               onAction({
                 kind: 'tool',
-                toolName: 'get_brief',
-                toolArgs: { briefId: b.briefId },
-                displayText: `Show me brief: ${productName}`,
+                toolName: 'get_study',
+                toolArgs: { studyId: b.studyId },
+                displayText: `Show me study: ${productName}`,
               })
             }
             kicker={
               isDraft
-                ? `BRIEF · ${String(i + 1).padStart(2, '0')} · DRAFT`
-                : `BRIEF · ${String(i + 1).padStart(2, '0')}`
+                ? `STUDY · ${String(i + 1).padStart(2, '0')} · DRAFT`
+                : `STUDY · ${String(i + 1).padStart(2, '0')}`
             }
             title={productName}
             subtitle={subtitleParts.join(' · ')}

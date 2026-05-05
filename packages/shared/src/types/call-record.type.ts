@@ -12,7 +12,7 @@ type CallStatus = 'created' | 'in-progress' | 'processing' | 'completed' | 'fail
 type CallRecord = {
   id: string;
   agentId: string;
-  briefId: string;
+  studyId: string;
   conversationId: string | null;
   status: CallStatus;
   context: ResearchContext;

@@ -9,8 +9,8 @@ import type { CardRendererProps } from './types';
 
 type InterviewDetailResult = {
   interviewId: string;
-  briefId: string | null;
-  briefName: string | null;
+  studyId: string | null;
+  studyName: string | null;
   contactName: string | null;
   status: 'completed' | 'failed';
   durationSecs: number | null;
@@ -23,30 +23,30 @@ export function InterviewDetail({ result, onAction }: CardRendererProps) {
   const iv = result as InterviewDetailResult;
   const duration = formatDuration(iv.durationSecs);
   const turnCount = iv.transcript?.length ?? 0;
-  const briefHint = iv.briefName ?? 'a brief';
+  const studyHint = iv.studyName ?? 'a study';
   const contactHint = iv.contactName ?? 'this interview';
 
   return (
     <Panel
-      kicker={`INTERVIEW · ON ${briefHint.toUpperCase()}`}
+      kicker={`INTERVIEW · ON ${studyHint.toUpperCase()}`}
       title={`${contactHint}${duration ? ` · ${duration}` : ''}`}
       subtitle={`${iv.status === 'completed' ? 'completed' : 'failed'}${
         turnCount ? ` · ${turnCount} turns` : ''
       }`}
       actions={
         <>
-          {iv.briefName && iv.briefId && (
+          {iv.studyName && iv.studyId && (
             <ActionPill
               variant="solid"
               action={{
                 kind: 'tool',
-                toolName: 'get_brief',
-                toolArgs: { briefId: iv.briefId },
-                displayText: `Show me brief: ${iv.briefName}`,
+                toolName: 'get_study',
+                toolArgs: { studyId: iv.studyId },
+                displayText: `Show me study: ${iv.studyName}`,
               }}
               onAction={onAction}
             >
-              View brief
+              View study
             </ActionPill>
           )}
           {iv.contactName && (

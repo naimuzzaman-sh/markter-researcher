@@ -11,27 +11,27 @@ export {
   researchContextSchema,
   researchQuestionSchema,
   questionCategorySchema,
-  briefPatchSchema,
+  studyPatchSchema,
 } from './types/research-context.type';
 export type {
   ResearchContext,
   ResearchQuestion,
   QuestionCategory,
-  BriefPatch,
+  StudyPatch,
 } from './types/research-context.type';
 
 export {
-  briefSchema,
-  briefStatusSchema,
-  briefChatMessageSchema,
-  briefResultsSchema,
-} from './types/brief.type';
+  studySchema,
+  studyStatusSchema,
+  studyChatMessageSchema,
+  studyResultsSchema,
+} from './types/study.type';
 export type {
-  Brief,
-  BriefStatus,
-  BriefChatMessage,
-  BriefResults,
-} from './types/brief.type';
+  Study,
+  StudyStatus,
+  StudyChatMessage,
+  StudyResults,
+} from './types/study.type';
 
 export {
   callAnalysisSchema,
@@ -72,12 +72,12 @@ export {
 export type { Contact, ContactSummary, EmailStatus } from './types/contact.type';
 
 export {
-  briefCandidateSchema,
+  studyCandidateSchema,
   candidateStatusSchema,
   candidateSourceSchema,
 } from './types/candidate.type';
 export type {
-  BriefCandidate,
+  StudyCandidate,
   CandidateStatus,
   CandidateSource,
 } from './types/candidate.type';

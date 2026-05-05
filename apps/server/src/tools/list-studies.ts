@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { listBriefsByOwner } from '../db/briefs';
+import { listStudiesByOwner } from '../db/studies';
 import { buildInterviewUrl } from '../lib/interview-url';
 import type { Tool } from './types';
 
@@ -8,7 +8,7 @@ const inputSchema = z.object({
 });
 
 type Output = Array<{
-  briefId: string;
+  studyId: string;
   productName: string;
   companyName: string;
   industry: string;
@@ -19,15 +19,15 @@ type Output = Array<{
   interviewUrl: string;
 }>;
 
-export const listBriefsTool: Tool<z.infer<typeof inputSchema>, Output> = {
-  name: 'list_briefs',
+export const listStudiesTool: Tool<z.infer<typeof inputSchema>, Output> = {
+  name: 'list_studies',
   description:
-    'Returns the research briefs the current user owns, newest first. Each item includes companyName + industry + questionCount + the public `interviewUrl` (`/interview/<briefId>`) for sharing.',
+    "List the current user's research studies, newest first. Each item is a summary: studyId, productName, companyName, industry, the research objective, the number of interview questions, the lifecycle `status` (`draft` for studies still being assembled, `active` for promoted ones ready for discovery + interviews), and `interviewUrl` (`/interview/<studyId>`) for sharing. Use to browse — for the full research_context + chat history + aggregated `results`, follow up with `get_study({ studyId })`.",
   inputSchema,
   async execute(args, ctx): Promise<Output> {
-    const briefs = await listBriefsByOwner(ctx.supabase, ctx.userId, args.limit ?? 20);
-    return briefs.map((b) => ({
-      briefId: b.id,
+    const studies = await listStudiesByOwner(ctx.supabase, ctx.userId, args.limit ?? 20);
+    return studies.map((b) => ({
+      studyId: b.id,
       productName: b.researchContext.product?.name ?? '',
       companyName: b.researchContext.company?.name ?? '',
       industry: b.researchContext.company?.industry ?? '',

@@ -1,14 +1,16 @@
 import type { ToolRegistry } from './types';
-import { listBriefsTool } from './list-briefs';
-import { getBriefTool } from './get-brief';
-import { createBriefTool } from './create-brief';
-import { updateBriefTool } from './update-brief';
-import { previewBriefTool } from './preview-brief';
+import { listStudiesTool } from './list-studies';
+import { getStudyTool } from './get-study';
+import { createStudyTool } from './create-study';
+import { updateStudyTool } from './update-study';
+import { previewStudyTool } from './preview-study';
+import { regenerateStudyResultsTool } from './regenerate-study-results';
+import { getInterviewLinkTool } from './get-interview-link';
 import { listInterviewsTool } from './list-interviews';
 import { getInterviewTool } from './get-interview';
 import { findCandidatesTool } from './find-candidates';
 import { getJobStatusTool } from './get-job-status';
-import { listCandidatesForBriefTool } from './list-candidates-for-brief';
+import { listCandidatesForStudyTool } from './list-candidates-for-study';
 import { getCandidateTool } from './get-candidate';
 import { approveCandidateTool } from './approve-candidate';
 import { rejectCandidateTool } from './reject-candidate';
@@ -24,16 +26,18 @@ import { getDashboardTool } from './get-dashboard';
  * handler code per transport.
  */
 export const tools: ToolRegistry = {
-  [listBriefsTool.name]: listBriefsTool,
-  [getBriefTool.name]: getBriefTool,
-  [createBriefTool.name]: createBriefTool,
-  [updateBriefTool.name]: updateBriefTool,
-  [previewBriefTool.name]: previewBriefTool,
+  [listStudiesTool.name]: listStudiesTool,
+  [getStudyTool.name]: getStudyTool,
+  [createStudyTool.name]: createStudyTool,
+  [updateStudyTool.name]: updateStudyTool,
+  [previewStudyTool.name]: previewStudyTool,
+  [regenerateStudyResultsTool.name]: regenerateStudyResultsTool,
+  [getInterviewLinkTool.name]: getInterviewLinkTool,
   [listInterviewsTool.name]: listInterviewsTool,
   [getInterviewTool.name]: getInterviewTool,
   [findCandidatesTool.name]: findCandidatesTool,
   [getJobStatusTool.name]: getJobStatusTool,
-  [listCandidatesForBriefTool.name]: listCandidatesForBriefTool,
+  [listCandidatesForStudyTool.name]: listCandidatesForStudyTool,
   [getCandidateTool.name]: getCandidateTool,
   [approveCandidateTool.name]: approveCandidateTool,
   [rejectCandidateTool.name]: rejectCandidateTool,

@@ -1,28 +1,28 @@
 import {
-  briefPatchSchema,
-  briefStatusSchema,
+  studyPatchSchema,
+  studyStatusSchema,
   researchContextSchema,
-  type BriefPatch,
+  type StudyPatch,
   type ResearchContext,
 } from '@mirrars/shared';
 import { z } from 'zod';
-import { getBriefById, updateBriefById } from '../db/briefs';
+import { getStudyById, updateStudyById } from '../db/studies';
 import { buildInterviewUrl } from '../lib/interview-url';
 import { AppError } from '../lib/errors';
 import type { Tool } from './types';
 
 const inputSchema = z.object({
-  briefId: z.string().uuid(),
+  studyId: z.string().uuid(),
   /** Partial patch onto researchContext. Fields not in the patch are left alone. */
-  patch: briefPatchSchema.optional(),
+  patch: studyPatchSchema.optional(),
   /**
-   * Promote a draft → 'active' once preview_brief is confirmed.
+   * Promote a draft → 'active' once preview_study is confirmed.
    * Setting `status: 'active'` triggers strict validation of the
    * MERGED research_context — incomplete drafts can't sneak through.
    * Demoting active → draft is allowed (e.g. user wants to keep
    * editing) but isn't a normal flow.
    */
-  status: briefStatusSchema.optional(),
+  status: studyStatusSchema.optional(),
 });
 
 /**
@@ -32,13 +32,13 @@ const inputSchema = z.object({
  * `research.productMarketFit` merges its own fields.
  *
  * Tolerant of missing existing subtrees — if `existing.company` is
- * undefined (draft brief) and the patch has `company`, the result is
+ * undefined (draft study) and the patch has `company`, the result is
  * just the patch fields. Spread-of-undefined is a no-op, so this works
  * cleanly without explicit guards.
  */
 function mergeContext(
   existing: Partial<ResearchContext>,
-  patch: BriefPatch,
+  patch: StudyPatch,
 ): Partial<ResearchContext> {
   return {
     company:
@@ -72,22 +72,22 @@ function mergeContext(
   } as Partial<ResearchContext>;
 }
 
-export const updateBriefTool: Tool<z.infer<typeof inputSchema>> = {
-  name: 'update_brief',
+export const updateStudyTool: Tool<z.infer<typeof inputSchema>> = {
+  name: 'update_study',
   description:
-    "Patch an existing brief and/or promote its status. `patch` accepts a partial context — only top-level subtrees you pass are touched; arrays replace atomically. `status: 'active'` promotes a draft to active and triggers strict validation of the merged context (the brief must be fully populated to promote). Returns the updated brief.",
+    "Patch an existing study and/or promote its lifecycle status. `patch` accepts a partial researchContext — only top-level subtrees (company / product / research / interviewSettings) you pass are touched; arrays (questions, concerns, signals, keyFeatures) replace atomically. `status: 'active'` promotes a draft to active and triggers strict validation of the merged context (the study must be fully populated to promote — incomplete drafts get rejected with a list of missing fields). Returns the updated study with the same wire shape as `get_study`. **NEVER call this tool without an actual patch or status change.** If the user just clicked 'Edit study' or asked to view, do NOT fire update_study with an empty patch and do NOT claim 'I've updated the study' in your reply — that's a phantom update that erodes trust. Wait for actual new information.",
   inputSchema,
   async execute(args, ctx) {
-    const existing = await getBriefById(ctx.supabase, args.briefId);
+    const existing = await getStudyById(ctx.supabase, args.studyId);
     if (!existing) {
-      // Include the offending briefId in the error so the agent can
-      // self-correct on retry — generic "Brief not found" gives it
+      // Include the offending studyId in the error so the agent can
+      // self-correct on retry — generic "Study not found" gives it
       // nothing to learn from. Common cause: the agent picked a stale
       // id from `artifactRef.entities` instead of the most recent
-      // create_brief / update_brief result.
+      // create_study / update_study result.
       throw new AppError(
         'not_found',
-        `Brief not found (briefId=${args.briefId}). Use the briefId from your most recent create_brief or get_brief result, not an older id in scope.`,
+        `Study not found (studyId=${args.studyId}). Use the studyId from your most recent create_study or get_study result, not an older id in scope.`,
       );
     }
 
@@ -108,19 +108,19 @@ export const updateBriefTool: Tool<z.infer<typeof inputSchema>> = {
           .join('; ');
         throw new AppError(
           'validation',
-          `Can't promote brief to active — context still has gaps: ${issues}`,
+          `Can't promote study to active — context still has gaps: ${issues}`,
         );
       }
     }
 
-    const updated = await updateBriefById(ctx.supabase, args.briefId, ctx.userId, {
+    const updated = await updateStudyById(ctx.supabase, args.studyId, ctx.userId, {
       context: args.patch ? merged : undefined,
       status: args.status,
     });
-    if (!updated) throw new AppError('not_found', 'Brief not found');
+    if (!updated) throw new AppError('not_found', 'Study not found');
 
     return {
-      briefId: updated.id,
+      studyId: updated.id,
       researchContext: updated.researchContext,
       status: updated.status,
       createdAt: updated.createdAt.toISOString(),

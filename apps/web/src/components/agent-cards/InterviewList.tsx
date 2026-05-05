@@ -8,8 +8,8 @@ import type { CardRendererProps } from './types';
 
 type InterviewListItem = {
   interviewId: string;
-  briefId: string | null;
-  briefName: string | null;
+  studyId: string | null;
+  studyName: string | null;
   contactName: string | null;
   status: 'completed' | 'failed';
   durationSecs: number | null;
@@ -20,58 +20,58 @@ type InterviewListItem = {
 type InterviewListResult =
   | InterviewListItem[]
   | {
-      briefId: string | null;
-      briefName: string | null;
+      studyId: string | null;
+      studyName: string | null;
       interviews: InterviewListItem[];
     };
 
 function unpack(result: InterviewListResult): {
   items: InterviewListItem[];
-  briefId: string | null;
-  briefName: string | null;
+  studyId: string | null;
+  studyName: string | null;
 } {
-  if (Array.isArray(result)) return { items: result, briefId: null, briefName: null };
+  if (Array.isArray(result)) return { items: result, studyId: null, studyName: null };
   return {
     items: result.interviews,
-    briefId: result.briefId,
-    briefName: result.briefName,
+    studyId: result.studyId,
+    studyName: result.studyName,
   };
 }
 
 export function InterviewList({ result, onAction }: CardRendererProps) {
-  const { items, briefId, briefName } = unpack(result as InterviewListResult);
+  const { items, studyId, studyName } = unpack(result as InterviewListResult);
 
   if (items.length === 0) {
-    const briefHint = briefName ?? null;
-    // When scoped to a brief, we have its id and can route deterministically;
-    // unscoped empty falls back to listing briefs (also a tool action).
+    const studyHint = studyName ?? null;
+    // When scoped to a study, we have its id and can route deterministically;
+    // unscoped empty falls back to listing studies (also a tool action).
     const emptyAction =
-      briefHint && briefId
+      studyHint && studyId
         ? ({
             kind: 'tool' as const,
-            toolName: 'list_candidates_for_brief',
-            toolArgs: { briefId },
-            displayText: `List candidates for ${briefHint}`,
+            toolName: 'list_candidates_for_study',
+            toolArgs: { studyId },
+            displayText: `List candidates for ${studyHint}`,
           })
         : ({
             kind: 'tool' as const,
-            toolName: 'list_briefs',
+            toolName: 'list_studies',
             toolArgs: {},
-            displayText: 'List my briefs',
+            displayText: 'List my studies',
           });
     return (
       <Panel
         variant="empty"
         kicker="NOTHING HERE"
-        title={briefHint ? `No interviews for ${briefHint} yet` : 'No interviews yet'}
+        title={studyHint ? `No interviews for ${studyHint} yet` : 'No interviews yet'}
         subtitle={
-          briefHint
-            ? `Approve candidates for ${briefHint} and run interviews to populate this list.`
+          studyHint
+            ? `Approve candidates for ${studyHint} and run interviews to populate this list.`
             : 'Approve candidates and run interviews to populate this list.'
         }
         actions={
           <ActionPill variant="solid" action={emptyAction} onAction={onAction}>
-            {briefHint ? 'View candidates →' : 'Open a brief →'}
+            {studyHint ? 'View candidates →' : 'Open a study →'}
           </ActionPill>
         }
       >
@@ -84,7 +84,7 @@ export function InterviewList({ result, onAction }: CardRendererProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {items.map((iv, i) => {
         const contactHint = iv.contactName ?? `Interview ${i + 1}`;
-        const briefHint = iv.briefName ?? 'a brief';
+        const studyHint = iv.studyName ?? 'a study';
         const duration = formatDuration(iv.durationSecs);
         return (
           <Panel
@@ -95,7 +95,7 @@ export function InterviewList({ result, onAction }: CardRendererProps) {
                 kind: 'tool',
                 toolName: 'get_interview',
                 toolArgs: { interviewId: iv.interviewId },
-                displayText: `Show me interview: ${contactHint} on ${briefHint}`,
+                displayText: `Show me interview: ${contactHint} on ${studyHint}`,
               })
             }
             kicker={
@@ -105,7 +105,7 @@ export function InterviewList({ result, onAction }: CardRendererProps) {
               </span>
             }
             title={duration ? `${contactHint} · ${duration}` : contactHint}
-            subtitle={`on ${briefHint}`}
+            subtitle={`on ${studyHint}`}
             variant="tight"
           >
             <div className="mt-2 pt-2 border-t border-border/40 flex justify-between items-center font-mono text-[10px] tracking-[0.15em] uppercase text-muted-foreground">

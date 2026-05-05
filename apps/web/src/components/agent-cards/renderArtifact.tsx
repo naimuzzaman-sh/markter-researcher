@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Artifact, PillAction } from '@/lib/api';
-import { BriefList } from './BriefList';
-import { BriefDetail } from './BriefDetail';
+import { StudyList } from './StudyList';
+import { StudyDetail } from './StudyDetail';
 import { CandidateList } from './CandidateList';
 import { CandidateDetail } from './CandidateDetail';
 import { ContactList } from './ContactList';
@@ -27,10 +27,10 @@ export function renderArtifact(
   const props = { result: artifact.data, error: null, onAction };
 
   switch (artifact.type) {
-    case 'brief.list':
-      return <BriefList {...props} />;
-    case 'brief.detail':
-      return <BriefDetail {...props} />;
+    case 'study.list':
+      return <StudyList {...props} />;
+    case 'study.detail':
+      return <StudyDetail {...props} />;
     case 'candidate.list':
       return <CandidateList {...props} />;
     case 'candidate.detail':

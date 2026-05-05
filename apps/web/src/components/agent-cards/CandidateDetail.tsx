@@ -18,8 +18,8 @@ type CandidateStatus =
 
 type CandidateDetailResult = {
   candidateId: string;
-  briefId: string;
-  briefName?: string | null;
+  studyId: string;
+  studyName?: string | null;
   contactId: string;
   status: CandidateStatus;
   source: 'discovery' | 'manual' | 'import';
@@ -43,7 +43,7 @@ type CandidateDetailResult = {
 export function CandidateDetail({ result, onAction }: CardRendererProps) {
   const c = result as CandidateDetailResult;
   const name = c.contact.name;
-  const briefHint = c.briefName ?? 'this brief';
+  const studyHint = c.studyName ?? 'this study';
   const matchPct = c.matchScore != null ? `${Math.round(c.matchScore * 100)}%` : '—';
 
   const subtitleParts = [
@@ -56,7 +56,7 @@ export function CandidateDetail({ result, onAction }: CardRendererProps) {
 
   return (
     <Panel
-      kicker={`CANDIDATE · FOR ${briefHint.toUpperCase()}`}
+      kicker={`CANDIDATE · FOR ${studyHint.toUpperCase()}`}
       title={name}
       subtitle={subtitle}
       actions={renderActions(c, name, onAction)}
@@ -115,13 +115,13 @@ function renderActions(
   name: string,
   onAction: (action: PillAction) => void,
 ): ReactNode {
-  const briefHint = c.briefName ?? 'this brief';
+  const studyHint = c.studyName ?? 'this study';
   const candidateId = c.candidateId;
-  const briefId = c.briefId;
+  const studyId = c.studyId;
   const interviewId = c.interviewId;
 
   // "View contact" — get_contact takes the contact's id (== c.contactId).
-  // "View brief" — get_brief takes briefId. Both deterministic.
+  // "View study" — get_study takes studyId. Both deterministic.
   const always = (
     <>
       <ActionPill
@@ -138,13 +138,13 @@ function renderActions(
       <ActionPill
         action={{
           kind: 'tool',
-          toolName: 'get_brief',
-          toolArgs: { briefId },
-          displayText: `Show me brief: ${briefHint}`,
+          toolName: 'get_study',
+          toolArgs: { studyId },
+          displayText: `Show me study: ${studyHint}`,
         }}
         onAction={onAction}
       >
-        View brief
+        View study
       </ActionPill>
     </>
   );

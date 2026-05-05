@@ -2,37 +2,37 @@ import { z } from 'zod';
 import { researchContextSchema } from './research-context.type';
 
 /**
- * Lifecycle states a brief can be in:
+ * Lifecycle states a study can be in:
  *   draft  — being assembled in chat. researchContext may be partial.
  *            Visible in list views with a draft badge so the user can
  *            click in and resume the conversation.
  *   active — fully populated, confirmed via preview, candidate
  *            discovery / interviews can run against it.
  */
-const briefStatusSchema = z.enum(['draft', 'active']);
-type BriefStatus = z.infer<typeof briefStatusSchema>;
+const studyStatusSchema = z.enum(['draft', 'active']);
+type StudyStatus = z.infer<typeof studyStatusSchema>;
 
 /**
- * Persisted chat turn anchored to a brief. Mirrors the in-memory
+ * Persisted chat turn anchored to a study. Mirrors the in-memory
  * `Turn` shape on the web client. `artifact` / `artifactRef` are
  * intentionally typed as `unknown` here — their shapes live in the
  * server's agent layer and we want the persistence layer to be a
  * structural pass-through, not a deep-validating mirror.
  */
-const briefChatMessageSchema = z.object({
+const studyChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string(),
   artifact: z.unknown().optional(),
   artifactRef: z.unknown().optional(),
 });
-type BriefChatMessage = z.infer<typeof briefChatMessageSchema>;
+type StudyChatMessage = z.infer<typeof studyChatMessageSchema>;
 
 /**
- * Aggregated findings across all completed interviews for a brief.
+ * Aggregated findings across all completed interviews for a study.
  * Re-computed (and overwritten) by the server after every interview
  * end. Null until the first interview completes successfully.
  */
-const briefResultsSchema = z.object({
+const studyResultsSchema = z.object({
   /** 1–2 paragraph human-readable synthesis. */
   summary: z.string(),
   /** Recurring topics across interviews (3–7). */
@@ -48,26 +48,26 @@ const briefResultsSchema = z.object({
   /** ISO timestamp of when this results payload was generated. */
   lastUpdated: z.string(),
 });
-type BriefResults = z.infer<typeof briefResultsSchema>;
+type StudyResults = z.infer<typeof studyResultsSchema>;
 
-const briefSchema = z.object({
+const studySchema = z.object({
   id: z.string().min(1),
   // For drafts this may be partial — the runtime is intentionally loose
   // here. Strict validation happens at the active-promotion point.
   researchContext: researchContextSchema,
-  status: briefStatusSchema,
-  chatHistory: z.array(briefChatMessageSchema).default([]),
+  status: studyStatusSchema,
+  chatHistory: z.array(studyChatMessageSchema).default([]),
   /** Synthesis from completed interviews. Null until the first one. */
-  results: briefResultsSchema.nullable(),
+  results: studyResultsSchema.nullable(),
   createdAt: z.date(),
 });
 
-type Brief = z.infer<typeof briefSchema>;
+type Study = z.infer<typeof studySchema>;
 
 export {
-  briefSchema,
-  briefStatusSchema,
-  briefChatMessageSchema,
-  briefResultsSchema,
+  studySchema,
+  studyStatusSchema,
+  studyChatMessageSchema,
+  studyResultsSchema,
 };
-export type { Brief, BriefStatus, BriefChatMessage, BriefResults };
+export type { Study, StudyStatus, StudyChatMessage, StudyResults };

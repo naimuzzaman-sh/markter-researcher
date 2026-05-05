@@ -8,7 +8,7 @@ const inputSchema = z.object({ contactId: z.string().uuid() });
 export const getContactTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'get_contact',
   description:
-    'Fetch one contact with full profile (name, title, company, LinkedIn URL, research notes, raw profile snapshot). Embedding vector is intentionally omitted.',
+    "Fetch one contact by id. Contacts are people the researcher can interview — they live org-wide, independent of any single study (the same person can be a candidate for multiple studies). Returns name, title, companyName/companyDomain, linkedinUrl, email, location, researchNotes, and profileJson (the raw discovery snapshot incl. Exa highlights). The embedding vector is intentionally omitted (large + irrelevant to the LLM). Use after `list_contacts` or when the user references a contact by name. For the candidate-side view (status, matchScore, study link), use `get_candidate` instead.",
   inputSchema,
   async execute(args, ctx) {
     const c = await getContactById(ctx.supabase, args.contactId, ctx.userId);

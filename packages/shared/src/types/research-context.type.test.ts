@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { briefPatchSchema, researchContextSchema } from './research-context.type';
+import { studyPatchSchema, researchContextSchema } from './research-context.type';
 
 const validContext = {
   company: {
@@ -93,21 +93,21 @@ describe('researchContextSchema', () => {
   });
 });
 
-describe('briefPatchSchema', () => {
+describe('studyPatchSchema', () => {
   it('accepts an empty patch (no-op update)', () => {
-    expect(briefPatchSchema.safeParse({}).success).toBe(true);
+    expect(studyPatchSchema.safeParse({}).success).toBe(true);
   });
 
   it('accepts a single nested field patch (research.objective only)', () => {
     expect(
-      briefPatchSchema.safeParse({ research: { objective: 'new goal' } })
+      studyPatchSchema.safeParse({ research: { objective: 'new goal' } })
         .success,
     ).toBe(true);
   });
 
   it('accepts a multi-subtree patch touching product + interviewSettings', () => {
     expect(
-      briefPatchSchema.safeParse({
+      studyPatchSchema.safeParse({
         product: { name: 'New Name' },
         interviewSettings: { maxDurationMinutes: 10 },
       }).success,
@@ -115,7 +115,7 @@ describe('briefPatchSchema', () => {
   });
 
   it('accepts replacing the questions array wholesale when complete items are provided', () => {
-    const result = briefPatchSchema.safeParse({
+    const result = studyPatchSchema.safeParse({
       research: {
         questions: [
           {
@@ -132,13 +132,13 @@ describe('briefPatchSchema', () => {
 
   it('rejects empty strings on fields that have minLength:1 (e.g. objective)', () => {
     expect(
-      briefPatchSchema.safeParse({ research: { objective: '' } }).success,
+      studyPatchSchema.safeParse({ research: { objective: '' } }).success,
     ).toBe(false);
   });
 
   it('rejects incomplete question objects in the questions array', () => {
     // Array items must be FULL questions — per-item partials are not supported.
-    const result = briefPatchSchema.safeParse({
+    const result = studyPatchSchema.safeParse({
       research: {
         questions: [{ id: 'qx', text: 'partial only' }],
       },
@@ -147,7 +147,7 @@ describe('briefPatchSchema', () => {
   });
 
   it('rejects unknown top-level keys via the object schema', () => {
-    const result = briefPatchSchema.safeParse({
+    const result = studyPatchSchema.safeParse({
       company: { name: 'X' },
       bogus: 'not a real field',
     });

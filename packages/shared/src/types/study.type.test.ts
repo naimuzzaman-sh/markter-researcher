@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { briefSchema } from './brief.type';
+import { studySchema } from './study.type';
 
-const validBrief = {
+const validStudy = {
   id: 'b9a7e7e1-8d3a-4f7b-9e4b-25b4e0c3a1f2',
   researchContext: {
     company: { name: 'Co', industry: 'SaaS', description: 'desc' },
@@ -25,33 +25,36 @@ const validBrief = {
       language: 'en',
     },
   },
+  status: 'active' as const,
+  chatHistory: [],
+  results: null,
   createdAt: new Date(),
 };
 
-describe('briefSchema', () => {
-  it('validates a correct brief', () => {
-    const result = briefSchema.safeParse(validBrief);
+describe('studySchema', () => {
+  it('validates a correct study', () => {
+    const result = studySchema.safeParse(validStudy);
     expect(result.success).toBe(true);
   });
 
   it('rejects missing id', () => {
-    const { id: _id, ...rest } = validBrief;
+    const { id: _id, ...rest } = validStudy;
     void _id;
-    const result = briefSchema.safeParse(rest);
+    const result = studySchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
   it('rejects invalid research context shape', () => {
     const invalid = {
-      ...validBrief,
-      researchContext: { ...validBrief.researchContext, company: { name: '' } },
+      ...validStudy,
+      researchContext: { ...validStudy.researchContext, company: { name: '' } },
     };
-    const result = briefSchema.safeParse(invalid);
+    const result = studySchema.safeParse(invalid);
     expect(result.success).toBe(false);
   });
 
   it('rejects non-UUID-ish id', () => {
-    const result = briefSchema.safeParse({ ...validBrief, id: '' });
+    const result = studySchema.safeParse({ ...validStudy, id: '' });
     expect(result.success).toBe(false);
   });
 });

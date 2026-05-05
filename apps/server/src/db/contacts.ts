@@ -177,7 +177,7 @@ export async function updateContactResearchNotes(
  * Look up contacts by email address — used by the Resend webhook to
  * route bounce/complaint events to the right row(s). One email can
  * legitimately appear under multiple owners (we discover the same
- * person for different briefs across different researchers), so this
+ * person for different studies across different researchers), so this
  * returns an array.
  */
 export async function findContactsByEmail(

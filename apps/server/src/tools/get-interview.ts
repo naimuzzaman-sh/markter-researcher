@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { getInterviewById } from '../db/interviews';
-import { getBriefById } from '../db/briefs';
+import { getStudyById } from '../db/studies';
 import { AppError } from '../lib/errors';
 import type { Tool } from './types';
 
@@ -9,25 +9,25 @@ const inputSchema = z.object({ interviewId: z.string().uuid() });
 export const getInterviewTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'get_interview',
   description:
-    'Fetch a single completed interview with full transcript + per-question analysis + PMF signals. Includes `briefName` and `contactName` resolved through the brief and the matching brief_candidate. Returns 404 for missing or not-owned.',
+    "Fetch a single interview by id with the full transcript and analysis. Returns: `transcript` (turn-by-turn role + message + timeInCallSecs), `analysis` (participant role + background, per-question answers with sentiment, keyInsights, productMarketFitSignals, suggestedFollowUps, overallSentiment), `status` (completed | failed), `durationSecs`, `completedAt`, plus resolved `studyName` and `contactName` so the LLM can refer to either by name. `analysis` may be null on rare transient-Gemini failures — the transcript is still the authoritative record. For aggregated cross-interview synthesis, use `get_study({ studyId }).results` or `regenerate_study_results`.",
   inputSchema,
   async execute(args, ctx) {
     const interview = await getInterviewById(ctx.supabase, args.interviewId, ctx.userId);
     if (!interview) throw new AppError('not_found', 'Interview not found');
 
-    // Brief is owner-gated by the interview itself (interviews join briefs
-    // by inner-join on owner_id), so a plain getBriefById is safe.
-    const brief = interview.briefId
-      ? await getBriefById(ctx.supabase, interview.briefId)
+    // Study is owner-gated by the interview itself (interviews join studies
+    // by inner-join on owner_id), so a plain getStudyById is safe.
+    const study = interview.studyId
+      ? await getStudyById(ctx.supabase, interview.studyId)
       : null;
 
-    // Contact name comes from the brief_candidate row that points at this
+    // Contact name comes from the study_candidate row that points at this
     // interview. Use the supabase client directly — it's a one-shot lookup
     // and we don't need a dedicated db helper.
     let contactName: string | null = null;
     if (interview.interviewId) {
       const { data } = await ctx.supabase
-        .from('brief_candidates')
+        .from('study_candidates')
         .select('contact:contacts(name)')
         .eq('interview_id', interview.interviewId)
         .maybeSingle();
@@ -42,8 +42,8 @@ export const getInterviewTool: Tool<z.infer<typeof inputSchema>> = {
 
     return {
       interviewId: interview.interviewId,
-      briefId: interview.briefId,
-      briefName: brief?.researchContext.product?.name ?? null,
+      studyId: interview.studyId,
+      studyName: study?.researchContext.product?.name ?? null,
       contactName,
       status: interview.status,
       transcript: interview.transcript,

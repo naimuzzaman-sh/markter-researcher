@@ -3,14 +3,20 @@ import { Link, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { EditorialLayout, Kicker } from '@/components/editorial';
 
-function BriefCreatedRoute() {
-  const { briefId } = useParams<{ briefId: string }>();
+/**
+ * Confirmation page after a study lands. Reachable at `/studies/:studyId`
+ * AND at `/briefs/:studyId` — the legacy `/briefs/...` path is aliased
+ * in `App.tsx` so invite emails issued before the brief→study rename
+ * still resolve. The route param is exposed as `studyId` either way.
+ */
+function StudyCreatedRoute() {
+  const { studyId } = useParams<{ studyId: string }>();
   const [copied, setCopied] = useState(false);
 
   const url = useMemo(() => {
-    if (!briefId) return '';
-    return `${window.location.origin}/interview/${briefId}`;
-  }, [briefId]);
+    if (!studyId) return '';
+    return `${window.location.origin}/interview/${studyId}`;
+  }, [studyId]);
 
   const handleCopy = useCallback(async () => {
     if (!url) return;
@@ -23,13 +29,13 @@ function BriefCreatedRoute() {
     }
   }, [url]);
 
-  if (!briefId) {
+  if (!studyId) {
     return (
       <EditorialLayout
         issueLabel="Issue № 001 — Dispatch"
         statusLabel="Unknown"
       >
-        <p className="font-serif text-lg">No brief in this URL.</p>
+        <p className="font-serif text-lg">No study in this URL.</p>
       </EditorialLayout>
     );
   }
@@ -93,4 +99,4 @@ function BriefCreatedRoute() {
   );
 }
 
-export default BriefCreatedRoute;
+export default StudyCreatedRoute;

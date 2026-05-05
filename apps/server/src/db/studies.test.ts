@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  listBriefsByOwner,
-  getBriefById,
-  insertBrief,
-  updateBriefById,
-  appendBriefChat,
-} from './briefs';
+  listStudiesByOwner,
+  getStudyById,
+  insertStudy,
+  updateStudyById,
+  appendStudyChat,
+} from './studies';
 
 type QB = {
   from: ReturnType<typeof vi.fn>;
@@ -77,13 +77,13 @@ const fullRow = {
   created_at: '2026-04-20T10:00:00Z',
 };
 
-describe('listBriefsByOwner', () => {
+describe('listStudiesByOwner', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('filters by owner_id and newest first', async () => {
     const client = makeClient({ rows: [fullRow] });
-    const rows = await listBriefsByOwner(client, 'u1', 20);
-    expect(client.from).toHaveBeenCalledWith('briefs');
+    const rows = await listStudiesByOwner(client, 'u1', 20);
+    expect(client.from).toHaveBeenCalledWith('studies');
     expect(client.eq).toHaveBeenCalledWith('owner_id', 'u1');
     expect(client.order).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(client.limit).toHaveBeenCalledWith(20);
@@ -96,24 +96,24 @@ describe('listBriefsByOwner', () => {
 
   it('throws on Supabase error', async () => {
     const client = makeClient({ error: { message: 'db down' } });
-    await expect(listBriefsByOwner(client, 'u1', 20)).rejects.toThrow(/db down/);
+    await expect(listStudiesByOwner(client, 'u1', 20)).rejects.toThrow(/db down/);
   });
 });
 
-describe('getBriefById', () => {
+describe('getStudyById', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('returns null when no row found', async () => {
     const client = makeClient({ row: null });
-    expect(await getBriefById(client, 'nope')).toBeNull();
+    expect(await getStudyById(client, 'nope')).toBeNull();
   });
 
-  it('returns the brief row mapped', async () => {
+  it('returns the study row mapped', async () => {
     const client = makeClient({ row: fullRow });
-    const brief = await getBriefById(client, 'b1');
-    expect(brief?.id).toBe('b1');
-    expect(brief?.researchContext).toEqual(sampleContext);
-    expect(brief?.status).toBe('active');
+    const study = await getStudyById(client, 'b1');
+    expect(study?.id).toBe('b1');
+    expect(study?.researchContext).toEqual(sampleContext);
+    expect(study?.status).toBe('active');
   });
 
   it('tolerates a partial research_context (draft state)', async () => {
@@ -125,18 +125,18 @@ describe('getBriefById', () => {
       created_at: '2026-05-01T10:00:00Z',
     };
     const client = makeClient({ row: draftRow });
-    const brief = await getBriefById(client, 'b2');
-    expect(brief?.status).toBe('draft');
-    expect(brief?.chatHistory).toHaveLength(1);
+    const study = await getStudyById(client, 'b2');
+    expect(study?.status).toBe('draft');
+    expect(study?.chatHistory).toHaveLength(1);
   });
 });
 
-describe('insertBrief', () => {
+describe('insertStudy', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('inserts as draft by default and returns the new id', async () => {
     const client = makeClient({ row: { id: 'new-id' } });
-    const id = await insertBrief(client, { context: sampleContext, ownerId: 'u1' });
+    const id = await insertStudy(client, { context: sampleContext, ownerId: 'u1' });
     expect(client.insert).toHaveBeenCalledWith({
       research_context: sampleContext,
       owner_id: 'u1',
@@ -147,7 +147,7 @@ describe('insertBrief', () => {
 
   it("inserts as active when status='active' is passed", async () => {
     const client = makeClient({ row: { id: 'new-id' } });
-    await insertBrief(client, {
+    await insertStudy(client, {
       context: sampleContext,
       ownerId: 'u1',
       status: 'active',
@@ -162,29 +162,29 @@ describe('insertBrief', () => {
   it('throws if insert returns no id', async () => {
     const client = makeClient({ row: null });
     await expect(
-      insertBrief(client, { context: sampleContext, ownerId: 'u1' }),
+      insertStudy(client, { context: sampleContext, ownerId: 'u1' }),
     ).rejects.toThrow();
   });
 });
 
-describe('updateBriefById', () => {
+describe('updateStudyById', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('updates research_context only when context is in patch', async () => {
     const client = makeClient({ row: fullRow });
-    await updateBriefById(client, 'b1', 'u1', { context: sampleContext });
+    await updateStudyById(client, 'b1', 'u1', { context: sampleContext });
     expect(client.update).toHaveBeenCalledWith({ research_context: sampleContext });
   });
 
   it('updates status only when status is in patch', async () => {
     const client = makeClient({ row: { ...fullRow, status: 'active' } });
-    await updateBriefById(client, 'b1', 'u1', { status: 'active' });
+    await updateStudyById(client, 'b1', 'u1', { status: 'active' });
     expect(client.update).toHaveBeenCalledWith({ status: 'active' });
   });
 
   it('updates both when both in patch', async () => {
     const client = makeClient({ row: { ...fullRow, status: 'active' } });
-    await updateBriefById(client, 'b1', 'u1', {
+    await updateStudyById(client, 'b1', 'u1', {
       context: sampleContext,
       status: 'active',
     });
@@ -195,7 +195,7 @@ describe('updateBriefById', () => {
   });
 });
 
-describe('appendBriefChat', () => {
+describe('appendStudyChat', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('appends new messages to existing chat_history under owner gate', async () => {
@@ -203,7 +203,7 @@ describe('appendBriefChat', () => {
     const client = makeClient({
       rowSequence: [{ chat_history: existing }],
     });
-    const len = await appendBriefChat(client, 'b1', 'u1', [
+    const len = await appendStudyChat(client, 'b1', 'u1', [
       { role: 'assistant', content: 'response' },
     ]);
     expect(client.update).toHaveBeenCalledWith({
@@ -215,9 +215,9 @@ describe('appendBriefChat', () => {
     expect(len).toBe(2);
   });
 
-  it('returns null when brief not found / not owned', async () => {
+  it('returns null when study not found / not owned', async () => {
     const client = makeClient({ rowSequence: [null] });
-    const len = await appendBriefChat(client, 'b1', 'u1', [
+    const len = await appendStudyChat(client, 'b1', 'u1', [
       { role: 'user', content: 'x' },
     ]);
     expect(len).toBeNull();
@@ -226,7 +226,7 @@ describe('appendBriefChat', () => {
 
   it('no-ops with empty messages array', async () => {
     const client = makeClient({ row: fullRow });
-    const len = await appendBriefChat(client, 'b1', 'u1', []);
+    const len = await appendStudyChat(client, 'b1', 'u1', []);
     expect(client.update).not.toHaveBeenCalled();
     expect(len).toBe(0);
   });

@@ -7,10 +7,10 @@ import type { CardRendererProps } from "./types";
 
 type DashboardData = {
   empty: boolean;
-  counts: { briefs: number; candidates: number; interviews: number };
-  pendingByBrief: Array<{ briefId: string; briefName: string; count: number }>;
-  recentBriefs: Array<{
-    briefId: string;
+  counts: { studies: number; candidates: number; interviews: number };
+  pendingByStudy: Array<{ studyId: string; studyName: string; count: number }>;
+  recentStudies: Array<{
+    studyId: string;
     productName: string;
     companyName: string;
     status: "draft" | "active";
@@ -18,8 +18,8 @@ type DashboardData = {
   }>;
   recentInterviews: Array<{
     interviewId: string;
-    briefId: string | null;
-    briefName: string | null;
+    studyId: string | null;
+    studyName: string | null;
     contactName: string | null;
     status: "completed" | "failed";
     durationSecs: number | null;
@@ -29,9 +29,9 @@ type DashboardData = {
 
 /**
  * First-turn orientation card. Two flavours:
- *   - empty (no briefs yet)  → onboarding panel + single CTA
- *   - populated              → counts in the kicker · pending queue ·
- *                              recent briefs · recent interviews
+ *   - empty (no studies yet)  → onboarding panel + single CTA
+ *   - populated               → counts in the kicker · pending queue ·
+ *                               recent studies · recent interviews
  *
  * Title is intentionally absent — the assistant's prose ("Welcome back…")
  * frames the turn; duplicating it on the card was redundant. Counts ride
@@ -51,15 +51,15 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
         actions={
           <ActionPill
             variant="solid"
-            action={{ kind: "prompt", text: "Create a new brief" }}
+            action={{ kind: "prompt", text: "Create a new study" }}
             onAction={onAction}
           >
-            Create your first brief →
+            Create your first study →
           </ActionPill>
         }
       >
         <p className="font-serif text-base leading-relaxed text-muted-foreground max-w-xl">
-          Create a brief, find candidates, send invites, then review their
+          Create a study, find candidates, send invites, then review their
           transcripts — all from this conversation.
         </p>
       </Panel>
@@ -78,21 +78,21 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
         <>
           <ActionPill
             variant="solid"
-            action={{ kind: "prompt", text: "Create a new brief" }}
+            action={{ kind: "prompt", text: "Create a new study" }}
             onAction={onAction}
           >
-            Create brief →
+            Create study →
           </ActionPill>
           <ActionPill
             action={{
               kind: "tool",
-              toolName: "list_briefs",
+              toolName: "list_studies",
               toolArgs: {},
-              displayText: "List my briefs",
+              displayText: "List my studies",
             }}
             onAction={onAction}
           >
-            All briefs
+            All studies
           </ActionPill>
           <ActionPill
             action={{
@@ -113,46 +113,46 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
           smaller breakpoints. Right-side meta (count / time) keeps the
           row scannable without wrapping. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-        {data.pendingByBrief.length > 0 && (
+        {data.pendingByStudy.length > 0 && (
           <Section
-            label={`CANDIDATES TO REVIEW · ${totalPending(data.pendingByBrief)}`}
+            label={`CANDIDATES TO REVIEW · ${totalPending(data.pendingByStudy)}`}
           >
-            {data.pendingByBrief.map((p) => (
+            {data.pendingByStudy.map((p) => (
               <Row
-                key={p.briefId}
+                key={p.studyId}
                 onClick={() =>
                   onAction({
                     kind: "tool",
-                    toolName: "list_candidates_for_brief",
-                    toolArgs: { briefId: p.briefId },
-                    displayText: `List candidates for ${p.briefName}`,
+                    toolName: "list_candidates_for_study",
+                    toolArgs: { studyId: p.studyId },
+                    displayText: `List candidates for ${p.studyName}`,
                   })
                 }
-                left={p.briefName || "Untitled brief"}
+                left={p.studyName || "Untitled study"}
                 right={`${p.count} pending`}
               />
             ))}
           </Section>
         )}
 
-        {data.recentBriefs.length > 0 && (
-          <Section label="RECENT BRIEFS">
-            {data.recentBriefs.map((b) => (
+        {data.recentStudies.length > 0 && (
+          <Section label="RECENT STUDIES">
+            {data.recentStudies.map((b) => (
               <Row
-                key={b.briefId}
-                // Click fires get_brief → renders the detail card inline.
+                key={b.studyId}
+                // Click fires get_study → renders the detail card inline.
                 // Same flow whether draft or active — the card itself
-                // exposes an "Edit brief" pill that loads chat history
+                // exposes an "Edit study" pill that loads chat history
                 // for resumption. Keeps the chat thread continuous.
                 onClick={() =>
                   onAction({
                     kind: "tool",
-                    toolName: "get_brief",
-                    toolArgs: { briefId: b.briefId },
-                    displayText: `Show me brief: ${b.productName || "untitled"}`,
+                    toolName: "get_study",
+                    toolArgs: { studyId: b.studyId },
+                    displayText: `Show me study: ${b.productName || "untitled"}`,
                   })
                 }
-                left={b.productName || "Untitled brief"}
+                left={b.productName || "Untitled study"}
                 right={
                   b.status === "draft"
                     ? `${formatRelativeTime(b.createdAt)} · draft`
@@ -167,7 +167,7 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
           <Section label="RECENT INTERVIEWS">
             {data.recentInterviews.map((iv) => {
               const title = iv.contactName ?? "Interview";
-              const onBrief = iv.briefName ? ` on ${iv.briefName}` : "";
+              const onStudy = iv.studyName ? ` on ${iv.studyName}` : "";
               const duration = formatDuration(iv.durationSecs);
               // Status + duration is more useful than relative time here:
               // section heading already implies "recent". User asked
@@ -181,10 +181,10 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
                       kind: "tool",
                       toolName: "get_interview",
                       toolArgs: { interviewId: iv.interviewId },
-                      displayText: `Show me interview: ${title}${onBrief}`,
+                      displayText: `Show me interview: ${title}${onStudy}`,
                     })
                   }
-                  left={iv.briefName ? `${title} · ${iv.briefName}` : title}
+                  left={iv.studyName ? `${title} · ${iv.studyName}` : title}
                   right={meta}
                 />
               );
@@ -197,14 +197,14 @@ export function Dashboard({ result, onAction }: CardRendererProps) {
 }
 
 function countsLine(counts: {
-  briefs: number;
+  studies: number;
   candidates: number;
   interviews: number;
 }): string {
-  const briefWord = counts.briefs === 1 ? "brief" : "briefs";
+  const studyWord = counts.studies === 1 ? "study" : "studies";
   const candWord = counts.candidates === 1 ? "candidate" : "candidates";
   const ivWord = counts.interviews === 1 ? "interview" : "interviews";
-  return `${counts.briefs} ${briefWord} · ${counts.candidates} ${candWord} · ${counts.interviews} ${ivWord}`;
+  return `${counts.studies} ${studyWord} · ${counts.candidates} ${candWord} · ${counts.interviews} ${ivWord}`;
 }
 
 function totalPending(rows: Array<{ count: number }>): number {

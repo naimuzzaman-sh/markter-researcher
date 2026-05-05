@@ -13,16 +13,16 @@ export function replyForArtifact(artifact: Artifact): string {
   const data = (artifact.data ?? {}) as Record<string, unknown>;
 
   switch (artifact.type) {
-    case 'brief.list': {
+    case 'study.list': {
       const items = Array.isArray(artifact.data) ? artifact.data.length : 0;
-      if (items === 0) return "You don't have any briefs yet.";
-      return items === 1 ? '1 brief.' : `${items} briefs.`;
+      if (items === 0) return "You don't have any studies yet.";
+      return items === 1 ? '1 study.' : `${items} studies.`;
     }
-    case 'brief.detail': {
+    case 'study.detail': {
       const ctx = (data.researchContext ?? {}) as Record<string, unknown>;
       const product = (ctx.product ?? {}) as Record<string, unknown>;
       const name = pickString(product.name);
-      return name ? `Here's the ${name} brief.` : "Here's the brief.";
+      return name ? `Here's the ${name} study.` : "Here's the study.";
     }
     case 'candidate.list': {
       const candidates = Array.isArray(data.candidates)
@@ -30,8 +30,8 @@ export function replyForArtifact(artifact: Artifact): string {
         : Array.isArray(artifact.data)
           ? artifact.data.length
           : 0;
-      const briefName = pickString(data.briefName);
-      const suffix = briefName ? ` for ${briefName}` : '';
+      const studyName = pickString(data.studyName);
+      const suffix = studyName ? ` for ${studyName}` : '';
       if (candidates === 0) return `No candidates${suffix} yet.`;
       const word = candidates === 1 ? 'candidate' : 'candidates';
       return `${candidates} ${word}${suffix}.`;
@@ -75,8 +75,8 @@ export function replyForArtifact(artifact: Artifact): string {
         : Array.isArray(artifact.data)
           ? artifact.data.length
           : 0;
-      const briefName = pickString(data.briefName);
-      const suffix = briefName ? ` for ${briefName}` : '';
+      const studyName = pickString(data.studyName);
+      const suffix = studyName ? ` for ${studyName}` : '';
       if (interviews === 0) return `No interviews${suffix} yet.`;
       const word = interviews === 1 ? 'interview' : 'interviews';
       return `${interviews} ${word}${suffix}.`;
@@ -87,8 +87,8 @@ export function replyForArtifact(artifact: Artifact): string {
     }
     case 'job.status': {
       const status = pickString(data.status);
-      const briefName = pickString(data.briefName);
-      const suffix = briefName ? ` for ${briefName}` : '';
+      const studyName = pickString(data.studyName);
+      const suffix = studyName ? ` for ${studyName}` : '';
       switch (status) {
         case 'queued':
           return `Sourcing queued${suffix}.`;
@@ -99,7 +99,7 @@ export function replyForArtifact(artifact: Artifact): string {
           // present — "Sourcing complete" alone hides the case where
           // every result was a duplicate (re-running the same query
           // returns the same profiles, all already linked to this
-          // brief).
+          // study).
           const out = (data.output ?? {}) as Record<string, unknown>;
           const added = typeof out.candidateCount === 'number' ? out.candidateCount : null;
           const skipped = typeof out.skipped === 'number' ? out.skipped : 0;
@@ -107,7 +107,7 @@ export function replyForArtifact(artifact: Artifact): string {
           if (added === 0 && skipped > 0) {
             return (
               `Sourcing complete${suffix} — 0 new candidates. ` +
-              `All ${skipped} result${skipped === 1 ? '' : 's'} were already in this brief. ` +
+              `All ${skipped} result${skipped === 1 ? '' : 's'} were already in this study. ` +
               `Try refining the audience or adding extraCriteria to surface new people.`
             );
           }
@@ -115,7 +115,7 @@ export function replyForArtifact(artifact: Artifact): string {
           const word = added === 1 ? 'candidate' : 'candidates';
           const dupe =
             skipped > 0
-              ? ` (${skipped} already in this brief, skipped)`
+              ? ` (${skipped} already in this study, skipped)`
               : '';
           return `Sourcing complete${suffix} — ${added} new ${word}${dupe}.`;
         }
@@ -126,13 +126,13 @@ export function replyForArtifact(artifact: Artifact): string {
       }
     }
     case 'dashboard': {
-      if (data.empty) return "Welcome — let's start with your first brief.";
+      if (data.empty) return "Welcome — let's start with your first study.";
       const counts = (data.counts ?? {}) as Record<string, unknown>;
-      const briefs = typeof counts.briefs === 'number' ? counts.briefs : 0;
-      const pendingByBrief = Array.isArray(data.pendingByBrief)
-        ? (data.pendingByBrief as Array<{ count?: unknown }>)
+      const studies = typeof counts.studies === 'number' ? counts.studies : 0;
+      const pendingByStudy = Array.isArray(data.pendingByStudy)
+        ? (data.pendingByStudy as Array<{ count?: unknown }>)
         : [];
-      const pending = pendingByBrief.reduce(
+      const pending = pendingByStudy.reduce(
         (sum, p) => sum + (typeof p.count === 'number' ? p.count : 0),
         0,
       );
@@ -140,8 +140,8 @@ export function replyForArtifact(artifact: Artifact): string {
         const word = pending === 1 ? 'candidate' : 'candidates';
         return `Welcome back. ${pending} ${word} waiting on your review.`;
       }
-      const briefWord = briefs === 1 ? 'brief' : 'briefs';
-      return `Welcome back. ${briefs} ${briefWord} in your workspace — all caught up.`;
+      const studyWord = studies === 1 ? 'study' : 'studies';
+      return `Welcome back. ${studies} ${studyWord} in your workspace — all caught up.`;
     }
     default: {
       const _exhaustive: never = artifact.type;

@@ -4,14 +4,14 @@ import {
   completeAgentJob,
   failAgentJob,
 } from '../db/agent-jobs';
-import { briefBelongsToOwner } from '../db/candidates';
-import { getBriefById } from '../db/briefs';
+import { studyBelongsToOwner } from '../db/candidates';
+import { getStudyById } from '../db/studies';
 import { AppError } from '../lib/errors';
 import { runDiscovery } from './_run-discovery';
 import type { Tool } from './types';
 
 const inputSchema = z.object({
-  briefId: z.string().uuid(),
+  studyId: z.string().uuid(),
   limit: z.number().int().positive().max(50).optional(),
   extraCriteria: z.string().max(500).optional(),
 });
@@ -19,13 +19,13 @@ const inputSchema = z.object({
 export const findCandidatesTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'find_candidates',
   description:
-    'Kick off an async discovery run: searches the web for people matching the brief\'s target audience (+ optional extraCriteria), creates candidates with status=pending_review, returns a `jobId`. Poll with `get_job_status`; when succeeded, call `list_candidates_for_brief`. Do not echo `jobId` or any tool name to the user — the UI surfaces job state.',
+    "Kick off async candidate discovery for a study: searches the web for people matching the study's target audience (+ optional `extraCriteria` to narrow or shift the search), creates candidates with status=`pending_review`, returns a `jobId`. Poll progress with `get_job_status`; when succeeded, call `list_candidates_for_study` to inspect the results. Do not echo `jobId` or any tool name back to the user — the UI surfaces job state via its own card.",
   inputSchema,
   async execute(args, ctx) {
-    const owns = await briefBelongsToOwner(ctx.supabase, args.briefId, ctx.userId);
-    if (!owns) throw new AppError('not_found', 'Brief not found');
+    const owns = await studyBelongsToOwner(ctx.supabase, args.studyId, ctx.userId);
+    if (!owns) throw new AppError('not_found', 'Study not found');
 
-    const input = { briefId: args.briefId, limit: args.limit ?? 10, extraCriteria: args.extraCriteria };
+    const input = { studyId: args.studyId, limit: args.limit ?? 10, extraCriteria: args.extraCriteria };
     const jobId = await insertAgentJob(ctx.supabase, {
       ownerId: ctx.userId,
       kind: 'discovery',
@@ -48,9 +48,9 @@ export const findCandidatesTool: Tool<z.infer<typeof inputSchema>> = {
         });
     });
 
-    // Ownership enforced by `briefBelongsToOwner` above. Surface briefName
+    // Ownership enforced by `studyBelongsToOwner` above. Surface studyName
     // so the JobStatus card can compose pill prompts without a round-trip.
-    const brief = await getBriefById(ctx.supabase, args.briefId);
+    const study = await getStudyById(ctx.supabase, args.studyId);
 
     // No `next` field on the wire — when present, the agent tends to
     // parrot tool names and raw IDs back to the user. The agent already
@@ -59,8 +59,8 @@ export const findCandidatesTool: Tool<z.infer<typeof inputSchema>> = {
       jobId,
       kind: 'discovery' as const,
       status: 'queued' as const,
-      briefId: args.briefId,
-      briefName: brief?.researchContext.product?.name ?? null,
+      studyId: args.studyId,
+      studyName: study?.researchContext.product?.name ?? null,
     };
   },
 };

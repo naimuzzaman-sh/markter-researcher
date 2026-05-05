@@ -2,7 +2,7 @@ import { AppError } from '../lib/errors';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
- * ElevenLabs Convai integration: create/delete per-brief voice agents, and
+ * ElevenLabs Convai integration: create/delete per-study voice agents, and
  * verify webhook signatures for post-call events. No SDK — plain fetch.
  */
 

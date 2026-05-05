@@ -189,7 +189,7 @@ export default function AgentChat({
   // pivoting to this brief. The agent receives the full thread and
   // picks up from the most recent in-thread turn (the loaded brief's
   // last message), which the system prompt nudges it toward.
-  const handleEditBrief = useCallback(
+  const handleEditStudy = useCallback(
     async (
       rawHistory: Array<{
         role: "user" | "assistant";
@@ -205,7 +205,7 @@ export default function AgentChat({
         .filter((m) => m.role === "user" || m.role === "assistant")
         // Strip click-pattern noise from legacy persisted histories.
         // Older `/run-tool` runs persisted view-only clicks like
-        // "Show me brief: X" / "Edit brief: X" + their detail cards;
+        // "Show me study: X" / "Edit study: X" (and the legacy "brief" variants) + their detail cards;
         // re-hydrating them looks like a loop. New rows skip these
         // (server-side filter), but already-stored data still has
         // them. Treat any "Show me brief: …" / "Edit brief: …" user
@@ -213,14 +213,14 @@ export default function AgentChat({
         // throwaway.
         .filter((m, i, arr) => {
           if (m.role === "user") {
-            return !/^(show me brief|edit brief):/i.test(m.content);
+            return !/^(show me (brief|study)|edit (brief|study)):/i.test(m.content);
           }
           // Drop the assistant turn that responded to a stripped click.
           const prev = arr[i - 1];
           if (
             prev &&
             prev.role === "user" &&
-            /^(show me brief|edit brief):/i.test(prev.content)
+            /^(show me (brief|study)|edit (brief|study)):/i.test(prev.content)
           ) {
             return false;
           }
@@ -233,9 +233,9 @@ export default function AgentChat({
           artifactRef: (m.artifactRef as ArtifactRef | null) ?? null,
         }));
 
-      const editText = `Edit brief: ${productName}`;
+      const editText = `Edit study: ${productName}`;
       const userTurn: Turn = { role: "user", content: editText };
-      // Append: existing in-memory turns first, then the brief's
+      // Append: existing in-memory turns first, then the study's
       // persisted history, then the edit prompt. Order matters — the
       // agent treats the LAST turns as "current context" and resumes
       // from there.
@@ -308,23 +308,23 @@ export default function AgentChat({
         case "navigate":
           navigate(action.url);
           break;
-        case "edit-brief": {
+        case "edit-study": {
           // Dedup by content: if any prior user turn was already an
-          // `Edit brief: <productName>` for this brief, the click is
+          // `Edit study: <productName>` for this study, the click is
           // a repeat → silent no-op. Survives component remounts /
           // HMR because it reads `turns` (which is restored from
           // chat_history on re-mount), not a ref.
-          const editPrompt = `Edit brief: ${action.productName}`;
+          const editPrompt = `Edit study: ${action.productName}`;
           const alreadyEdited = turns.some(
             (t) => t.role === "user" && t.content === editPrompt,
           );
           if (alreadyEdited) break;
-          void handleEditBrief(action.chatHistory, action.productName);
+          void handleEditStudy(action.chatHistory, action.productName);
           break;
         }
       }
     },
-    [handleRunTool, handleSendText, navigate, handleEditBrief, turns],
+    [handleRunTool, handleSendText, navigate, handleEditStudy, turns],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

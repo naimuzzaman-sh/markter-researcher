@@ -6,11 +6,11 @@ import { formatRelativeTime } from "./format-relative-time";
 import { Panel } from "./Panel";
 import type { CardRendererProps } from "./types";
 
-// Wire shape for `get_brief` / `create_brief` / `update_brief` /
-// `preview_brief` results: `briefId` field, not bare `id`. (preview_brief
+// Wire shape for `get_study` / `create_study` / `update_study` /
+// `preview_study` results: `studyId` field, not bare `id`. (preview_study
 // returns a draft without a real id; it falls back to '' which disables
 // id-dependent pills.) `interviewUrl` is the public sharing link the
-// server builds from `webOrigin` — null for preview_brief.
+// server builds from `webOrigin` — null for preview_study.
 type ChatHistoryEntry = {
   role: 'user' | 'assistant';
   content: string;
@@ -18,7 +18,7 @@ type ChatHistoryEntry = {
   artifactRef?: unknown;
 };
 
-type BriefResults = {
+type StudyResults = {
   summary: string;
   themes: string[];
   painPoints: string[];
@@ -28,42 +28,42 @@ type BriefResults = {
   lastUpdated: string;
 };
 
-type BriefDetailResult = {
-  briefId?: string | null;
+type StudyDetailResult = {
+  studyId?: string | null;
   researchContext: ResearchContext;
   /**
-   * Lifecycle state. 'draft' = brief is being assembled in chat, may
+   * Lifecycle state. 'draft' = study is being assembled in chat, may
    * be partial. 'active' = fully populated, ready for discovery.
-   * Optional for backward compat with `preview_brief` (which doesn't
+   * Optional for backward compat with `preview_study` (which doesn't
    * persist anything) and any pre-migration clients.
    */
   status?: 'draft' | 'active';
   /**
-   * Persisted brief-creation/edit conversation. `get_brief` populates
-   * this; `preview_brief` doesn't. The Edit pill ships it back into
+   * Persisted study-creation/edit conversation. `get_study` populates
+   * this; `preview_study` doesn't. The Edit pill ships it back into
    * the chat shell so the user resumes from where they left off.
    */
   chatHistory?: ChatHistoryEntry[];
   /**
-   * Brief-level synthesis across all completed interviews. Populated
+   * Study-level synthesis across all completed interviews. Populated
    * by the post-interview summarizer; null until the first interview
    * lands. Renders as a dedicated RESULTS section on the card.
    */
-  results?: BriefResults | null;
+  results?: StudyResults | null;
   createdAt: string | Date | null;
   interviewUrl?: string | null;
 };
 
-export function BriefDetail({ result, onAction }: CardRendererProps) {
-  const brief = result as BriefDetailResult;
-  const ctx = brief.researchContext;
-  const productName = ctx.product?.name ?? "Untitled brief";
-  const briefId = brief.briefId ?? "";
-  const interviewUrl = brief.interviewUrl ?? null;
+export function StudyDetail({ result, onAction }: CardRendererProps) {
+  const study = result as StudyDetailResult;
+  const ctx = study.researchContext;
+  const productName = ctx.product?.name ?? "Untitled study";
+  const studyId = study.studyId ?? "";
+  const interviewUrl = study.interviewUrl ?? null;
   const subtitleParts = [
     ctx.company?.name,
     ctx.company?.industry,
-    brief.createdAt ? `created ${formatRelativeTime(brief.createdAt)}` : null,
+    study.createdAt ? `created ${formatRelativeTime(study.createdAt)}` : null,
   ].filter(Boolean);
 
   const hypothesis = ctx.research?.productMarketFit?.hypothesis;
@@ -72,13 +72,13 @@ export function BriefDetail({ result, onAction }: CardRendererProps) {
 
   return (
     <Panel
-      kicker={brief.status === 'draft' ? 'BRIEF · DRAFT' : 'BRIEF'}
+      kicker={study.status === 'draft' ? 'STUDY · DRAFT' : 'STUDY'}
       title={productName}
       subtitle={subtitleParts.join(" · ")}
-      actions={renderActions(brief, briefId, productName, interviewUrl, onAction)}
+      actions={renderActions(study, studyId, productName, interviewUrl, onAction)}
     >
       <div className="space-y-4">
-        {brief.results && <ResultsSection results={brief.results} />}
+        {study.results && <ResultsSection results={study.results} />}
         {ctx.research?.objective && (
           <Field label="OBJECTIVE" emphasized>
             {ctx.research.objective}
@@ -138,12 +138,12 @@ export function BriefDetail({ result, onAction }: CardRendererProps) {
 
 /**
  * Aggregated findings across all completed interviews. Rendered above
- * the brief's static fields when `results` is non-null — drawing the
+ * the study's static fields when `results` is non-null — drawing the
  * researcher's eye to the synthesis that's the point of the whole
  * exercise. Refreshes after every new interview lands (server fires
  * the summarizer on call-end).
  */
-function ResultsSection({ results }: { results: BriefResults }) {
+function ResultsSection({ results }: { results: StudyResults }) {
   return (
     <div className="border border-accent/30 bg-accent/5 p-4">
       <div className="flex items-baseline justify-between">
@@ -280,56 +280,56 @@ function FieldList({
 
 /**
  * Action pills branch by lifecycle, but the body of the card (fields,
- * layout, typography) stays uniform — drafts and active briefs share
+ * layout, typography) stays uniform — drafts and active studies share
  * the same details view. Only the affordances differ:
  *
- *   • No briefId (preview_brief result, never persisted)
- *       → "Create brief →" prompt only
+ *   • No studyId (preview_study result, never persisted)
+ *       → "Create study →" prompt only
  *
- *   • Draft (status === 'draft', briefId set)
- *       → "Edit brief →" only. Find candidates, view interviews,
- *         copy invite link are all premature on a brief that isn't
+ *   • Draft (status === 'draft', studyId set)
+ *       → "Edit study →" only. Find candidates, view interviews,
+ *         copy invite link are all premature on a study that isn't
  *         done yet — they unlock when the user promotes to active.
  *
- *   • Active (status === 'active' or absent — legacy briefs default
+ *   • Active (status === 'active' or absent — legacy studies default
  *     active per the migration backfill)
  *       → full action set: edit, discovery, copy invite, view
  *         candidates, view interviews
  *
- * Edit dispatches an `edit-brief` action carrying chat history so
+ * Edit dispatches an `edit-study` action carrying chat history so
  * AgentChat can append prior conversation onto the existing thread
  * without an extra round-trip.
  */
 function renderActions(
-  brief: BriefDetailResult,
-  briefId: string,
+  study: StudyDetailResult,
+  studyId: string,
   productName: string,
   interviewUrl: string | null,
   onAction: (action: PillAction) => void,
 ): ReactNode {
-  if (!briefId) {
+  if (!studyId) {
     return (
       <ActionPill
         variant="solid"
-        action={{ kind: "prompt", text: "Create this brief" }}
+        action={{ kind: "prompt", text: "Create this study" }}
         onAction={onAction}
       >
-        Create brief →
+        Create study →
       </ActionPill>
     );
   }
 
   const editAction: PillAction = {
-    kind: "edit-brief",
-    briefId,
+    kind: "edit-study",
+    studyId,
     productName,
-    chatHistory: brief.chatHistory ?? [],
+    chatHistory: study.chatHistory ?? [],
   };
 
-  if (brief.status === "draft") {
+  if (study.status === "draft") {
     return (
       <ActionPill variant="solid" action={editAction} onAction={onAction}>
-        Edit brief →
+        Edit study →
       </ActionPill>
     );
   }
@@ -337,13 +337,13 @@ function renderActions(
   return (
     <>
       <ActionPill variant="solid" action={editAction} onAction={onAction}>
-        Edit brief →
+        Edit study →
       </ActionPill>
       <ActionPill
         action={{
           kind: "tool",
           toolName: "find_candidates",
-          toolArgs: { briefId },
+          toolArgs: { studyId },
           displayText: `Find candidates for ${productName}`,
         }}
         onAction={onAction}
@@ -361,8 +361,8 @@ function renderActions(
       <ActionPill
         action={{
           kind: "tool",
-          toolName: "list_candidates_for_brief",
-          toolArgs: { briefId },
+          toolName: "list_candidates_for_study",
+          toolArgs: { studyId },
           displayText: `List candidates for ${productName}`,
         }}
         onAction={onAction}
@@ -373,7 +373,7 @@ function renderActions(
         action={{
           kind: "tool",
           toolName: "list_interviews",
-          toolArgs: { briefId },
+          toolArgs: { studyId },
           displayText: `List interviews for ${productName}`,
         }}
         onAction={onAction}

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
-  BriefCandidate,
+  StudyCandidate,
   CandidateStatus,
   CandidateSource,
   ContactSummary,
@@ -9,7 +9,7 @@ import { AppError } from '../lib/errors';
 
 type CandidateRow = {
   id: string;
-  brief_id: string;
+  study_id: string;
   contact_id: string;
   status: string;
   source: string;
@@ -20,12 +20,12 @@ type CandidateRow = {
 };
 
 const COLS =
-  'id, brief_id, contact_id, status, source, match_score, interview_id, created_at, updated_at';
+  'id, study_id, contact_id, status, source, match_score, interview_id, created_at, updated_at';
 
-function rowToCandidate(row: CandidateRow): BriefCandidate {
+function rowToCandidate(row: CandidateRow): StudyCandidate {
   return {
     id: row.id,
-    briefId: row.brief_id,
+    studyId: row.study_id,
     contactId: row.contact_id,
     status: row.status as CandidateStatus,
     source: row.source as CandidateSource,
@@ -37,7 +37,7 @@ function rowToCandidate(row: CandidateRow): BriefCandidate {
 }
 
 type InsertInput = {
-  briefId: string;
+  studyId: string;
   contactId: string;
   source: CandidateSource;
   matchScore: number | null;
@@ -49,9 +49,9 @@ export async function insertCandidate(
   input: InsertInput,
 ): Promise<string> {
   const { data, error } = await client
-    .from('brief_candidates')
+    .from('study_candidates')
     .insert({
-      brief_id: input.briefId,
+      study_id: input.studyId,
       contact_id: input.contactId,
       source: input.source,
       match_score: input.matchScore,
@@ -69,8 +69,8 @@ export async function insertCandidate(
 
 /**
  * Bulk-insert candidates in a single round-trip. Idempotent on the
- * `(brief_id, contact_id)` uniqueness constraint — same person
- * re-discovered for the same brief is silently skipped (existing
+ * `(study_id, contact_id)` uniqueness constraint — same person
+ * re-discovered for the same study is silently skipped (existing
  * status / match_score is preserved). Returns the ids of the rows
  * that were ACTUALLY inserted; caller can compare length against
  * input length to count duplicates.
@@ -89,16 +89,16 @@ export async function insertCandidates(
 ): Promise<string[]> {
   if (inputs.length === 0) return [];
   const rows = inputs.map((input) => ({
-    brief_id: input.briefId,
+    study_id: input.studyId,
     contact_id: input.contactId,
     source: input.source,
     match_score: input.matchScore,
     status: input.status,
   }));
   const { data, error } = await client
-    .from('brief_candidates')
+    .from('study_candidates')
     .upsert(rows, {
-      onConflict: 'brief_id,contact_id',
+      onConflict: 'study_id,contact_id',
       ignoreDuplicates: true,
     })
     .select('id');
@@ -116,15 +116,15 @@ export async function insertCandidates(
 }
 
 /**
- * Fetch candidate + its brief's owner for server-side ownership enforcement.
+ * Fetch candidate + its study's owner for server-side ownership enforcement.
  */
 export async function getCandidateWithOwner(
   client: SupabaseClient,
   id: string,
-): Promise<{ candidate: BriefCandidate; briefOwnerId: string } | null> {
+): Promise<{ candidate: StudyCandidate; studyOwnerId: string } | null> {
   const { data, error } = await client
-    .from('brief_candidates')
-    .select(`${COLS}, briefs!inner(owner_id)`)
+    .from('study_candidates')
+    .select(`${COLS}, studies!inner(owner_id)`)
     .eq('id', id)
     .maybeSingle();
 
@@ -132,23 +132,23 @@ export async function getCandidateWithOwner(
   if (!data) return null;
 
   const joined = data as CandidateRow & {
-    briefs: { owner_id: string } | { owner_id: string }[];
+    studies: { owner_id: string } | { owner_id: string }[];
   };
-  const ownerId = Array.isArray(joined.briefs) ? joined.briefs[0]?.owner_id : joined.briefs?.owner_id;
+  const ownerId = Array.isArray(joined.studies) ? joined.studies[0]?.owner_id : joined.studies?.owner_id;
   if (!ownerId) return null;
 
-  return { candidate: rowToCandidate(joined), briefOwnerId: ownerId };
+  return { candidate: rowToCandidate(joined), studyOwnerId: ownerId };
 }
 
-export async function listCandidatesForBrief(
+export async function listCandidatesForStudy(
   client: SupabaseClient,
-  briefId: string,
+  studyId: string,
   limit: number,
-): Promise<BriefCandidate[]> {
+): Promise<StudyCandidate[]> {
   const { data, error } = await client
-    .from('brief_candidates')
+    .from('study_candidates')
     .select(COLS)
-    .eq('brief_id', briefId)
+    .eq('study_id', studyId)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -165,22 +165,22 @@ type ContactJoinRow = {
 };
 
 /**
- * Like `listCandidatesForBrief` but joins the contact summary so callers can
+ * Like `listCandidatesForStudy` but joins the contact summary so callers can
  * render the candidate's name/title/company without a second round-trip.
  * Sorted by match_score (desc, nulls last) then created_at desc, so the best
  * matches surface first when the agent shows the list.
  */
-export async function listCandidatesForBriefWithContact(
+export async function listCandidatesForStudyWithContact(
   client: SupabaseClient,
-  briefId: string,
+  studyId: string,
   limit: number,
-): Promise<Array<{ candidate: BriefCandidate; contact: ContactSummary }>> {
+): Promise<Array<{ candidate: StudyCandidate; contact: ContactSummary }>> {
   const { data, error } = await client
-    .from('brief_candidates')
+    .from('study_candidates')
     .select(
       `${COLS}, contact:contacts(id, name, title, linkedin_url, company_name)`,
     )
-    .eq('brief_id', briefId)
+    .eq('study_id', studyId)
     .order('match_score', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -207,16 +207,16 @@ export async function listCandidatesForBriefWithContact(
         } satisfies ContactSummary,
       };
     })
-    .filter((entry): entry is { candidate: BriefCandidate; contact: ContactSummary } => entry !== null);
+    .filter((entry): entry is { candidate: StudyCandidate; contact: ContactSummary } => entry !== null);
 }
 
 export async function updateCandidateStatus(
   client: SupabaseClient,
   id: string,
   status: CandidateStatus,
-): Promise<BriefCandidate | null> {
+): Promise<StudyCandidate | null> {
   const { data, error } = await client
-    .from('brief_candidates')
+    .from('study_candidates')
     .update({ status })
     .eq('id', id)
     .select(COLS)
@@ -227,18 +227,18 @@ export async function updateCandidateStatus(
   return rowToCandidate(data as CandidateRow);
 }
 
-export async function briefBelongsToOwner(
+export async function studyBelongsToOwner(
   client: SupabaseClient,
-  briefId: string,
+  studyId: string,
   ownerId: string,
 ): Promise<boolean> {
   const { data, error } = await client
-    .from('briefs')
+    .from('studies')
     .select('id')
-    .eq('id', briefId)
+    .eq('id', studyId)
     .eq('owner_id', ownerId)
     .maybeSingle();
 
-  if (error) throw new AppError('upstream', `Failed to check brief ownership: ${error.message}`);
+  if (error) throw new AppError('upstream', `Failed to check study ownership: ${error.message}`);
   return !!data;
 }

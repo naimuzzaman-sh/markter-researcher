@@ -2,7 +2,7 @@ import { AppError } from '../lib/errors';
 
 /**
  * Thin EXA /search wrapper. Used by the discovery flow to find LinkedIn
- * profiles matching a brief's target audience.
+ * profiles matching a study's target audience.
  */
 
 export type ExaSearchResult = {
@@ -36,9 +36,9 @@ export type ExaSearchOptions = {
    */
   livecrawl?: 'always' | 'preferred' | 'fallback' | 'never' | 'auto';
   /**
-   * Per-query relevance excerpts. We pass the brief's ICP description as
+   * Per-query relevance excerpts. We pass the study's ICP description as
    * the highlight query so the returned excerpts answer "why does this
-   * person match the brief" — feeds the candidate-card rationale.
+   * person match the study" — feeds the candidate-card rationale.
    */
   highlights?: {
     numSentences?: number;

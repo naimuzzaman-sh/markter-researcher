@@ -4,7 +4,7 @@ import { savedInterviewSchema } from './saved-interview.type';
 const validInterview = {
   callId: 'call-abc',
   agentId: 'agent_xyz',
-  briefId: 'b9a7e7e1-8d3a-4f7b-9e4b-25b4e0c3a1f2',
+  studyId: 'b9a7e7e1-8d3a-4f7b-9e4b-25b4e0c3a1f2',
   conversationId: 'conv_123',
   status: 'completed' as const,
   researchContext: {

@@ -11,7 +11,7 @@ const savedTranscriptEntrySchema = z.object({
 const savedInterviewSchema = z.object({
   callId: z.string().min(1),
   agentId: z.string().min(1),
-  briefId: z.string().min(1),
+  studyId: z.string().min(1),
   conversationId: z.string().nullable(),
   status: z.enum(['completed', 'failed']),
   researchContext: researchContextSchema,
@@ -30,7 +30,7 @@ type SavedInterview = z.infer<typeof savedInterviewSchema>;
  */
 type InterviewSummary = {
   interviewId: string;
-  briefId: string | null;
+  studyId: string | null;
   status: 'completed' | 'failed';
   durationSecs: number | null;
   overallSentiment: 'positive' | 'neutral' | 'negative' | null;
@@ -40,11 +40,11 @@ type InterviewSummary = {
 /**
  * Detail view for MCP `get_interview` and the web interview detail page.
  * Excludes callId, agentId, conversationId, researchContext (fetched via the
- * brief when needed) to keep the payload focused on what reviewers look at.
+ * study when needed) to keep the payload focused on what reviewers look at.
  */
 type InterviewDetail = {
   interviewId: string;
-  briefId: string | null;
+  studyId: string | null;
   status: 'completed' | 'failed';
   transcript: SavedInterview['transcript'];
   analysis: SavedInterview['analysis'];

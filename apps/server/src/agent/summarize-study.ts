@@ -1,19 +1,19 @@
 import { GoogleGenAI } from '@google/genai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  briefResultsSchema,
-  type BriefResults,
+  studyResultsSchema,
+  type StudyResults,
   type ResearchContext,
 } from '@mirrars/shared';
-import { getBriefById, updateBriefResults } from '../db/briefs';
-import { listCompletedInterviewsForBriefSummarization } from '../db/interviews';
+import { getStudyById, updateStudyResults } from '../db/studies';
+import { listCompletedInterviewsForStudySummarization } from '../db/interviews';
 import { AppError } from '../lib/errors';
 
 /**
- * Brief-level synthesis across all completed interviews. Triggered
+ * Study-level synthesis across all completed interviews. Triggered
  * (fire-and-forget) at the end of every interview that lands
  * successfully — see `routes/calls.ts`. Each new interview replaces
- * the prior `briefs.results` payload (last-writer-wins is fine: the
+ * the prior `studies.results` payload (last-writer-wins is fine: the
  * inputs are stable persisted transcripts).
  *
  * No-ops cleanly when there are zero completed interviews — leaves
@@ -52,9 +52,9 @@ function buildSummaryPrompt(args: {
     })
     .join('\n\n');
 
-  return `You are synthesizing findings across ALL interviews collected for a single research brief. Return STRICT JSON matching the required schema.
+  return `You are synthesizing findings across ALL interviews collected for a single research study. Return STRICT JSON matching the required schema.
 
-## Brief context
+## Study context
 PRODUCT: ${productName}
 OBJECTIVE: ${objective}
 TARGET AUDIENCE: ${audience}
@@ -72,17 +72,17 @@ ${interviewsBlock}
 Be precise. Ground every claim in the interview data. If interviews disagree, name the disagreement explicitly. Don't pad — fewer high-quality items beats more weak ones.`;
 }
 
-export async function summarizeBrief(args: {
+export async function summarizeStudy(args: {
   apiKey: string;
   supabase: SupabaseClient;
-  briefId: string;
-}): Promise<BriefResults | null> {
-  const brief = await getBriefById(args.supabase, args.briefId);
-  if (!brief) return null;
+  studyId: string;
+}): Promise<StudyResults | null> {
+  const study = await getStudyById(args.supabase, args.studyId);
+  if (!study) return null;
 
-  const interviews = await listCompletedInterviewsForBriefSummarization(
+  const interviews = await listCompletedInterviewsForStudySummarization(
     args.supabase,
-    args.briefId,
+    args.studyId,
   );
   // Zero interviews → nothing to synthesize. Return null and leave
   // existing results (if any) untouched.
@@ -97,7 +97,7 @@ export async function summarizeBrief(args: {
         parts: [
           {
             text: buildSummaryPrompt({
-              context: brief.researchContext,
+              context: study.researchContext,
               interviews,
             }),
           },
@@ -129,7 +129,7 @@ export async function summarizeBrief(args: {
     lastUpdated: new Date().toISOString(),
   };
 
-  const result = briefResultsSchema.safeParse(stamped);
+  const result = studyResultsSchema.safeParse(stamped);
   if (!result.success) {
     throw new AppError(
       'upstream',
@@ -137,6 +137,6 @@ export async function summarizeBrief(args: {
     );
   }
 
-  await updateBriefResults(args.supabase, args.briefId, result.data);
+  await updateStudyResults(args.supabase, args.studyId, result.data);
   return result.data;
 }

@@ -56,7 +56,7 @@ function Hero() {
 
 /**
  * Three static mocks that narrate the flow visually:
- *   01 → workspace card  (brief + queues at a glance)
+ *   01 → workspace card  (study + queues at a glance)
  *   02 → transcript turn (a real-feeling exchange mid-interview)
  *   03 → read-out card   (the structured artifact you wake up to)
  *
@@ -124,7 +124,7 @@ function WorkspaceMock() {
         Workspace
       </div>
       <p className="font-serif italic text-sm text-muted-foreground mt-1">
-        3 briefs · 17 candidates · 4 interviews
+        3 studies · 17 candidates · 4 interviews
       </p>
       <div className="mt-4">
         <div className="font-mono text-[10px] tracking-[0.25em] uppercase text-accent mb-1.5">

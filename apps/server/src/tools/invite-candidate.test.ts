@@ -9,8 +9,8 @@ vi.mock('../db/candidates', () => ({
 vi.mock('../db/contacts', () => ({
   getContactById: vi.fn(),
 }));
-vi.mock('../db/briefs', () => ({
-  getBriefById: vi.fn(),
+vi.mock('../db/studies', () => ({
+  getStudyById: vi.fn(),
 }));
 vi.mock('../external/resend', () => ({
   sendInterviewInvite: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock('../external/resend', () => ({
 import { inviteCandidateTool } from './invite-candidate';
 import { getCandidateWithOwner, updateCandidateStatus } from '../db/candidates';
 import { getContactById } from '../db/contacts';
-import { getBriefById } from '../db/briefs';
+import { getStudyById } from '../db/studies';
 import { sendInterviewInvite } from '../external/resend';
 
 const cfg: Config = {
@@ -45,7 +45,7 @@ const ownerId = 'u1';
 
 const baseCandidate = {
   id: 'cand1',
-  briefId: 'b1',
+  studyId: 'b1',
   contactId: 'cont1',
   status: 'approved' as const,
   source: 'discovery' as const,
@@ -75,7 +75,7 @@ const baseContact = {
   updatedAt: new Date(),
 };
 
-const baseBrief = {
+const baseStudy = {
   id: 'b1',
   ownerId,
   researchContext: {
@@ -91,9 +91,9 @@ const baseBrief = {
 beforeEach(() => {
   vi.mocked(getCandidateWithOwner)
     .mockReset()
-    .mockResolvedValue({ candidate: baseCandidate, briefOwnerId: ownerId } as never);
+    .mockResolvedValue({ candidate: baseCandidate, studyOwnerId: ownerId } as never);
   vi.mocked(getContactById).mockReset().mockResolvedValue(baseContact as never);
-  vi.mocked(getBriefById).mockReset().mockResolvedValue(baseBrief as never);
+  vi.mocked(getStudyById).mockReset().mockResolvedValue(baseStudy as never);
   vi.mocked(sendInterviewInvite)
     .mockReset()
     .mockResolvedValue({ id: 'em_1' });
@@ -114,7 +114,7 @@ describe('inviteCandidateTool', () => {
   it('owner-gates via the candidate row', async () => {
     vi.mocked(getCandidateWithOwner).mockResolvedValue({
       candidate: baseCandidate,
-      briefOwnerId: 'someone-else',
+      studyOwnerId: 'someone-else',
     } as never);
     await expect(
       inviteCandidateTool.execute({ candidateId: baseCandidate.id }, ctxOf()),
@@ -132,7 +132,7 @@ describe('inviteCandidateTool', () => {
   it("refuses to re-send when candidate is already 'contacted'", async () => {
     vi.mocked(getCandidateWithOwner).mockResolvedValue({
       candidate: { ...baseCandidate, status: 'contacted' },
-      briefOwnerId: ownerId,
+      studyOwnerId: ownerId,
     } as never);
     await expect(
       inviteCandidateTool.execute({ candidateId: baseCandidate.id }, ctxOf()),

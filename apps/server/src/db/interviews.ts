@@ -8,28 +8,28 @@ import { AppError } from '../lib/errors';
 
 type InterviewListRow = {
   id: string;
-  brief_id: string | null;
+  study_id: string | null;
   status: 'completed' | 'failed';
   duration_secs: number | null;
   analysis: { overallSentiment?: 'positive' | 'neutral' | 'negative' } | null;
   completed_at: string | null;
-  briefs: {
+  studies: {
     research_context: { product?: { name?: string } } | null;
   } | null;
-  brief_candidate:
+  study_candidate:
     | { contact: { name: string } | { name: string }[] | null }
     | { contact: { name: string } | { name: string }[] | null }[]
     | null;
 };
 
 export type InterviewSummaryWithNames = InterviewSummary & {
-  briefName: string | null;
+  studyName: string | null;
   contactName: string | null;
 };
 
 type InterviewDetailRow = {
   id: string;
-  brief_id: string | null;
+  study_id: string | null;
   status: 'completed' | 'failed';
   transcript: SavedInterview['transcript'];
   analysis: SavedInterview['analysis'];
@@ -39,25 +39,25 @@ type InterviewDetailRow = {
 
 /**
  * List interviews owned by a user. Ownership is enforced via an inner join
- * on `briefs.owner_id`, so rows belonging to other users are filtered at the
+ * on `studies.owner_id`, so rows belonging to other users are filtered at the
  * DB layer rather than in app code.
  */
 export async function listInterviewsByOwner(
   client: SupabaseClient,
   ownerId: string,
-  briefId: string | undefined,
+  studyId: string | undefined,
   limit: number,
 ): Promise<InterviewSummaryWithNames[]> {
   let query = client
     .from('interviews')
     .select(
-      `id, brief_id, status, duration_secs, analysis, completed_at,
-       briefs!inner(owner_id, research_context),
-       brief_candidate:brief_candidates!interview_id(contact:contacts(name))`,
+      `id, study_id, status, duration_secs, analysis, completed_at,
+       studies!inner(owner_id, research_context),
+       study_candidate:study_candidates!interview_id(contact:contacts(name))`,
     )
-    .eq('briefs.owner_id', ownerId);
+    .eq('studies.owner_id', ownerId);
 
-  if (briefId) query = query.eq('brief_id', briefId);
+  if (studyId) query = query.eq('study_id', studyId);
 
   const { data, error } = await query
     .order('completed_at', { ascending: false, nullsFirst: false })
@@ -69,12 +69,12 @@ export async function listInterviewsByOwner(
   const rows = (data ?? []) as unknown as InterviewListRow[];
 
   return rows.map((row) => {
-    const brief = Array.isArray(row.briefs) ? row.briefs[0] : row.briefs;
-    const briefName = brief?.research_context?.product?.name ?? null;
+    const study = Array.isArray(row.studies) ? row.studies[0] : row.studies;
+    const studyName = study?.research_context?.product?.name ?? null;
 
-    const candidate = Array.isArray(row.brief_candidate)
-      ? row.brief_candidate[0]
-      : row.brief_candidate;
+    const candidate = Array.isArray(row.study_candidate)
+      ? row.study_candidate[0]
+      : row.study_candidate;
     const candidateContact = candidate
       ? Array.isArray(candidate.contact)
         ? candidate.contact[0]
@@ -84,8 +84,8 @@ export async function listInterviewsByOwner(
 
     return {
       interviewId: row.id,
-      briefId: row.brief_id,
-      briefName,
+      studyId: row.study_id,
+      studyName,
       contactName,
       status: row.status,
       durationSecs: row.duration_secs,
@@ -96,18 +96,18 @@ export async function listInterviewsByOwner(
 }
 
 /**
- * Load all COMPLETED interviews for a brief, with full transcripts +
+ * Load all COMPLETED interviews for a study, with full transcripts +
  * analyses. Used by the post-interview summarizer to synthesize
- * brief-level findings. No owner-gate here — this is server-internal,
- * called from server-side handlers that already have the brief in
+ * study-level findings. No owner-gate here — this is server-internal,
+ * called from server-side handlers that already have the study in
  * scope (fire-and-forget after `endCall`).
  *
  * Failed interviews are excluded — empty transcripts contribute
  * nothing to a synthesis.
  */
-export async function listCompletedInterviewsForBriefSummarization(
+export async function listCompletedInterviewsForStudySummarization(
   client: SupabaseClient,
-  briefId: string,
+  studyId: string,
 ): Promise<
   Array<{
     interviewId: string;
@@ -119,7 +119,7 @@ export async function listCompletedInterviewsForBriefSummarization(
   const { data, error } = await client
     .from('interviews')
     .select('id, transcript, analysis, completed_at')
-    .eq('brief_id', briefId)
+    .eq('study_id', studyId)
     .eq('status', 'completed')
     .order('completed_at', { ascending: true });
   if (error) {
@@ -150,10 +150,10 @@ export async function getInterviewById(
   const { data, error } = await client
     .from('interviews')
     .select(
-      'id, brief_id, status, transcript, analysis, duration_secs, completed_at, briefs!inner(owner_id)',
+      'id, study_id, status, transcript, analysis, duration_secs, completed_at, studies!inner(owner_id)',
     )
     .eq('id', interviewId)
-    .eq('briefs.owner_id', ownerId)
+    .eq('studies.owner_id', ownerId)
     .maybeSingle();
 
   if (error) throw new AppError('upstream', `Failed to fetch interview: ${error.message}`);
@@ -162,7 +162,7 @@ export async function getInterviewById(
   const row = data as InterviewDetailRow;
   return {
     interviewId: row.id,
-    briefId: row.brief_id,
+    studyId: row.study_id,
     status: row.status,
     transcript: row.transcript,
     analysis: row.analysis,
@@ -178,7 +178,7 @@ export async function saveInterview(
   const row = {
     call_id: interview.callId,
     agent_id: interview.agentId,
-    brief_id: interview.briefId,
+    study_id: interview.studyId,
     conversation_id: interview.conversationId,
     status: interview.status,
     research_context: interview.researchContext,

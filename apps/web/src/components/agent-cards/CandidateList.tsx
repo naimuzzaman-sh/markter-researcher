@@ -7,7 +7,7 @@ import type { CardRendererProps } from './types';
 
 type CandidateListItem = {
   candidateId: string;
-  briefId: string;
+  studyId: string;
   contactId: string;
   status:
     | 'discovered'
@@ -33,51 +33,51 @@ type CandidateListItem = {
 type CandidateListResult =
   | CandidateListItem[] // legacy / MCP-side shape
   | {
-      briefId: string;
-      briefName: string | null;
+      studyId: string;
+      studyName: string | null;
       candidates: CandidateListItem[];
     };
 
 function unpack(result: CandidateListResult): {
   items: CandidateListItem[];
-  briefId: string | null;
-  briefName: string | null;
+  studyId: string | null;
+  studyName: string | null;
 } {
   if (Array.isArray(result)) {
-    return { items: result, briefId: null, briefName: null };
+    return { items: result, studyId: null, studyName: null };
   }
   return {
     items: result.candidates,
-    briefId: result.briefId,
-    briefName: result.briefName,
+    studyId: result.studyId,
+    studyName: result.studyName,
   };
 }
 
 export function CandidateList({ result, onAction }: CardRendererProps) {
-  const { items, briefId, briefName } = unpack(result as CandidateListResult);
+  const { items, studyId, studyName } = unpack(result as CandidateListResult);
 
   if (items.length === 0) {
-    const briefHint = briefName ?? 'this brief';
-    // Use the deterministic tool action when we have the briefId in the
+    const studyHint = studyName ?? 'this study';
+    // Use the deterministic tool action when we have the studyId in the
     // wrap; otherwise fall back to a prompt the LLM can interpret.
     const findAction =
-      briefId
+      studyId
         ? ({
             kind: 'tool' as const,
             toolName: 'find_candidates',
-            toolArgs: { briefId },
-            displayText: `Find candidates for ${briefHint}`,
+            toolArgs: { studyId },
+            displayText: `Find candidates for ${studyHint}`,
           })
         : ({
             kind: 'prompt' as const,
-            text: `Find candidates for ${briefHint}`,
+            text: `Find candidates for ${studyHint}`,
           });
     return (
       <Panel
         variant="empty"
         kicker="NOTHING HERE"
         title="No candidates yet"
-        subtitle={`Run a discovery search to find people for ${briefHint}.`}
+        subtitle={`Run a discovery search to find people for ${studyHint}.`}
         actions={
           <ActionPill variant="solid" action={findAction} onAction={onAction}>
             Find candidates →

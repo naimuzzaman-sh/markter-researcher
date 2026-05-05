@@ -19,7 +19,7 @@ export type ChatTurnInput =
       role: 'assistant';
       content: string;
       // Carries the structured "what was on screen" reference from the
-      // server's previous reply. Lets the agent resolve "this brief",
+      // server's previous reply. Lets the agent resolve "this study",
       // "her", etc. without re-doing name → id lookups.
       artifactRef?: ArtifactRef;
     };

@@ -1,4 +1,4 @@
-import type { BriefCandidate, ContactSummary } from '@mirrars/shared';
+import type { StudyCandidate, ContactSummary } from '@mirrars/shared';
 
 /**
  * Map the candidate's internal `source` enum to a user-facing label.
@@ -7,7 +7,7 @@ import type { BriefCandidate, ContactSummary } from '@mirrars/shared';
  * a LinkedIn URL, "from web search" otherwise.
  */
 export function formatSource(
-  candidate: Pick<BriefCandidate, 'source'>,
+  candidate: Pick<StudyCandidate, 'source'>,
   contact: Pick<ContactSummary, 'linkedinUrl'>,
 ): string {
   if (candidate.source === 'manual') return 'added manually';

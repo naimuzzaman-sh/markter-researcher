@@ -6,8 +6,8 @@ import type { Config } from '../config';
 // runDiscovery DOES with their results — name extraction, batched
 // calls, count accounting — not on the wire.
 
-vi.mock('../db/briefs', () => ({
-  getBriefById: vi.fn(),
+vi.mock('../db/studies', () => ({
+  getStudyById: vi.fn(),
 }));
 vi.mock('../db/contacts', () => ({
   bulkUpsertContactsByLinkedIn: vi.fn(),
@@ -23,7 +23,7 @@ vi.mock('../external/openai', () => ({
 }));
 
 import { runDiscovery } from './_run-discovery';
-import { getBriefById } from '../db/briefs';
+import { getStudyById } from '../db/studies';
 import { bulkUpsertContactsByLinkedIn } from '../db/contacts';
 import { insertCandidates } from '../db/candidates';
 import { exaSearch } from '../external/exa';
@@ -49,10 +49,10 @@ const cfg: Config = {
 
 const supabase = {} as SupabaseClient;
 const ownerId = 'u1';
-const briefId = 'b1';
+const studyId = 'b1';
 
-const baseBrief = {
-  id: briefId,
+const baseStudy = {
+  id: studyId,
   ownerId,
   researchContext: {
     company: { name: 'Acme', industry: 'fintech', description: '' },
@@ -77,7 +77,7 @@ const baseBrief = {
 beforeEach(() => {
   // Module-level vi.mock keeps the function existence; we reset history
   // and re-prime defaults each test so cases stay independent.
-  vi.mocked(getBriefById).mockReset().mockResolvedValue(baseBrief as never);
+  vi.mocked(getStudyById).mockReset().mockResolvedValue(baseStudy as never);
   vi.mocked(exaSearch).mockReset();
   vi.mocked(embedTexts)
     .mockReset()
@@ -118,17 +118,17 @@ beforeEach(() => {
 });
 
 describe('runDiscovery', () => {
-  it('throws not_found when brief is missing', async () => {
-    vi.mocked(getBriefById).mockResolvedValue(null);
+  it('throws not_found when study is missing', async () => {
+    vi.mocked(getStudyById).mockResolvedValue(null);
     vi.mocked(exaSearch).mockResolvedValue([]);
     await expect(
-      runDiscovery(supabase, cfg, ownerId, { briefId, limit: 5 }),
-    ).rejects.toThrow(/Brief not found/);
+      runDiscovery(supabase, cfg, ownerId, { studyId, limit: 5 }),
+    ).rejects.toThrow(/Study not found/);
   });
 
   it('builds an Exa query with category linkedin profile + livecrawl preferred + highlights', async () => {
     vi.mocked(exaSearch).mockResolvedValue([]);
-    await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 3 });
+    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 3 });
     const call = vi.mocked(exaSearch).mock.calls[0];
     expect(call[0]).toBe('k');
     expect(call[1].category).toBe('linkedin profile');
@@ -136,7 +136,7 @@ describe('runDiscovery', () => {
     expect(call[1].includeDomains).toEqual(['linkedin.com']);
     expect(call[1].highlights?.numSentences).toBe(2);
     expect(call[1].numResults).toBe(3);
-    // Query is composed from the brief's full ICP context, not just two tokens.
+    // Query is composed from the study's full ICP context, not just two tokens.
     expect(call[1].query).toContain('Heads of Finance at Series A fintechs');
     expect(call[1].query).toContain('fintech');
     expect(call[1].query).toContain('Reconciliation tool');
@@ -154,7 +154,7 @@ describe('runDiscovery', () => {
         score: 0.9,
       },
     ]);
-    await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 1 });
+    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 1 });
     const upsertCall = vi.mocked(bulkUpsertContactsByLinkedIn).mock.calls[0];
     expect(upsertCall[1][0].name).toBe('Ada Lovelace');
     // Title parser still pulls role + company from the title field.
@@ -174,7 +174,7 @@ describe('runDiscovery', () => {
         score: 0.5,
       },
     ]);
-    await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 1 });
+    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 1 });
     const upsertCall = vi.mocked(bulkUpsertContactsByLinkedIn).mock.calls[0];
     expect(upsertCall[1][0].name).toBe('Grace Hopper');
     expect(upsertCall[1][0].companyName).toBe('Compilers Inc');
@@ -201,7 +201,7 @@ describe('runDiscovery', () => {
         score: 0.2,
       },
     ]);
-    await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 2 });
+    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 2 });
     expect(vi.mocked(embedTexts)).toHaveBeenCalledTimes(1);
     const docs = vi.mocked(embedTexts).mock.calls[0][1];
     expect(docs).toHaveLength(2);
@@ -209,7 +209,7 @@ describe('runDiscovery', () => {
 
   it('counts re-discovered candidates as skipped, not as new', async () => {
     // Simulates: 2 profiles found, but one already exists in
-    // brief_candidates for this brief (Postgres unique constraint
+    // study_candidates for this study (Postgres unique constraint
     // skips it). insertCandidates returns 1 id even though we asked
     // to insert 2.
     vi.mocked(exaSearch).mockResolvedValue([
@@ -240,10 +240,10 @@ describe('runDiscovery', () => {
       tokens: 2,
     });
     // Only one id comes back from the bulk insert — the other was a
-    // (brief_id, contact_id) duplicate and got silently dropped.
+    // (study_id, contact_id) duplicate and got silently dropped.
     vi.mocked(insertCandidates).mockResolvedValue(['cand_new']);
 
-    const out = await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 5 });
+    const out = await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 5 });
     expect(out.candidateCount).toBe(1);
     expect(out.skipped).toBe(1);
   });
@@ -270,7 +270,7 @@ describe('runDiscovery', () => {
       },
     ]);
     vi.mocked(embedTexts).mockResolvedValue({ embeddings: [[0.1]], tokens: 1 });
-    const out = await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 5 });
+    const out = await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 5 });
     expect(out.candidateCount).toBe(1);
     expect(out.skipped).toBe(1);
     expect(out.tokensUsed).toBe(1);
@@ -278,7 +278,7 @@ describe('runDiscovery', () => {
 
   it('returns empty/zero output when no profiles match — does not call embed/upsert/insert', async () => {
     vi.mocked(exaSearch).mockResolvedValue([]);
-    const out = await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 5 });
+    const out = await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 5 });
     expect(out).toEqual({
       candidateCount: 0,
       skipped: 0,
@@ -304,7 +304,7 @@ describe('runDiscovery', () => {
       },
     ]);
     vi.mocked(embedTexts).mockResolvedValue({ embeddings: [[0.1]], tokens: 1 });
-    await runDiscovery(supabase, cfg, ownerId, { briefId, limit: 1 });
+    await runDiscovery(supabase, cfg, ownerId, { studyId, limit: 1 });
     const upsertInputs = vi.mocked(bulkUpsertContactsByLinkedIn).mock.calls[0][1];
     expect(upsertInputs[0].profileJson).toMatchObject({
       highlights: ['why this match'],

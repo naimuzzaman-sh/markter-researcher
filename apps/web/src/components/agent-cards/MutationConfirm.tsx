@@ -14,8 +14,8 @@ type CandidateStatus =
 
 type CandidateMutationResult = {
   candidateId: string;
-  briefId: string;
-  briefName?: string | null;
+  studyId: string;
+  studyName?: string | null;
   status: CandidateStatus;
   contact: { name: string };
 };
@@ -33,13 +33,13 @@ const VERB: Record<CandidateStatus, string> = {
 export function MutationConfirm({ result, onAction }: CardRendererProps) {
   const c = result as CandidateMutationResult;
   const name = c.contact?.name ?? 'Candidate';
-  const briefHint = c.briefName ?? 'this brief';
+  const studyHint = c.studyName ?? 'this study';
   return (
     <Panel
       variant="tight"
       kicker={`✓ ${VERB[c.status]}`}
       title={name}
-      subtitle={`on ${briefHint} · just now`}
+      subtitle={`on ${studyHint} · just now`}
       actions={renderNextStep(c, onAction)}
     >
       {null}

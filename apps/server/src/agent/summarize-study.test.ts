@@ -11,24 +11,24 @@ vi.mock('@google/genai', () => ({
   })),
 }));
 
-vi.mock('../db/briefs', () => ({
-  getBriefById: vi.fn(),
-  updateBriefResults: vi.fn(),
+vi.mock('../db/studies', () => ({
+  getStudyById: vi.fn(),
+  updateStudyResults: vi.fn(),
 }));
 
 vi.mock('../db/interviews', () => ({
-  listCompletedInterviewsForBriefSummarization: vi.fn(),
+  listCompletedInterviewsForStudySummarization: vi.fn(),
 }));
 
-import { summarizeBrief } from './summarize-brief';
-import { getBriefById, updateBriefResults } from '../db/briefs';
-import { listCompletedInterviewsForBriefSummarization } from '../db/interviews';
+import { summarizeStudy } from './summarize-study';
+import { getStudyById, updateStudyResults } from '../db/studies';
+import { listCompletedInterviewsForStudySummarization } from '../db/interviews';
 
 const supabase = {} as SupabaseClient;
-const briefId = 'b1';
+const studyId = 'b1';
 
-const baseBrief = {
-  id: briefId,
+const baseStudy = {
+  id: studyId,
   researchContext: {
     company: { name: 'Acme', industry: 'fintech', description: 'd' },
     product: { name: 'Acme Pay', description: 'd', keyFeatures: ['x'], targetAudience: 'SMBs' },
@@ -72,11 +72,11 @@ const validResultsPayload = {
 };
 
 beforeEach(() => {
-  vi.mocked(getBriefById).mockReset().mockResolvedValue(baseBrief as never);
-  vi.mocked(listCompletedInterviewsForBriefSummarization)
+  vi.mocked(getStudyById).mockReset().mockResolvedValue(baseStudy as never);
+  vi.mocked(listCompletedInterviewsForStudySummarization)
     .mockReset()
     .mockResolvedValue([baseInterview] as never);
-  vi.mocked(updateBriefResults).mockReset().mockResolvedValue(true);
+  vi.mocked(updateStudyResults).mockReset().mockResolvedValue(true);
   generateContent.mockReset();
   generateContent.mockResolvedValue({
     text: JSON.stringify(validResultsPayload),
@@ -84,33 +84,33 @@ beforeEach(() => {
   });
 });
 
-describe('summarizeBrief', () => {
-  it('returns null when brief does not exist', async () => {
-    vi.mocked(getBriefById).mockResolvedValue(null);
-    const result = await summarizeBrief({
+describe('summarizeStudy', () => {
+  it('returns null when study does not exist', async () => {
+    vi.mocked(getStudyById).mockResolvedValue(null);
+    const result = await summarizeStudy({
       apiKey: 'k',
       supabase,
-      briefId,
+      studyId,
     });
     expect(result).toBeNull();
     expect(generateContent).not.toHaveBeenCalled();
-    expect(vi.mocked(updateBriefResults)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
   it('returns null and writes nothing when there are zero completed interviews', async () => {
-    vi.mocked(listCompletedInterviewsForBriefSummarization).mockResolvedValue([]);
-    const result = await summarizeBrief({
+    vi.mocked(listCompletedInterviewsForStudySummarization).mockResolvedValue([]);
+    const result = await summarizeStudy({
       apiKey: 'k',
       supabase,
-      briefId,
+      studyId,
     });
     expect(result).toBeNull();
     expect(generateContent).not.toHaveBeenCalled();
-    expect(vi.mocked(updateBriefResults)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
   it('stamps interviewCount + lastUpdated server-side (not from the LLM)', async () => {
-    vi.mocked(listCompletedInterviewsForBriefSummarization).mockResolvedValue([
+    vi.mocked(listCompletedInterviewsForStudySummarization).mockResolvedValue([
       baseInterview,
       { ...baseInterview, interviewId: 'iv2' },
       { ...baseInterview, interviewId: 'iv3' },
@@ -120,7 +120,7 @@ describe('summarizeBrief', () => {
       text: JSON.stringify({ ...validResultsPayload, interviewCount: 99, lastUpdated: 'fake' }),
     });
     const before = Date.now();
-    const result = await summarizeBrief({ apiKey: 'k', supabase, briefId });
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
     const after = Date.now();
     expect(result?.interviewCount).toBe(3);
     const updated = new Date(result!.lastUpdated).getTime();
@@ -128,12 +128,12 @@ describe('summarizeBrief', () => {
     expect(updated).toBeLessThanOrEqual(after);
   });
 
-  it('persists the validated result via updateBriefResults', async () => {
-    const result = await summarizeBrief({ apiKey: 'k', supabase, briefId });
+  it('persists the validated result via updateStudyResults', async () => {
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
     expect(result).not.toBeNull();
-    expect(vi.mocked(updateBriefResults)).toHaveBeenCalledWith(
+    expect(vi.mocked(updateStudyResults)).toHaveBeenCalledWith(
       supabase,
-      briefId,
+      studyId,
       expect.objectContaining({
         summary: validResultsPayload.summary,
         themes: validResultsPayload.themes,
@@ -145,9 +145,9 @@ describe('summarizeBrief', () => {
   it('throws when Gemini returns invalid JSON', async () => {
     generateContent.mockResolvedValue({ text: 'not json {{{' });
     await expect(
-      summarizeBrief({ apiKey: 'k', supabase, briefId }),
+      summarizeStudy({ apiKey: 'k', supabase, studyId }),
     ).rejects.toThrow(/not valid JSON/);
-    expect(vi.mocked(updateBriefResults)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
   it('throws when JSON fails the schema (missing required field)', async () => {
@@ -155,15 +155,15 @@ describe('summarizeBrief', () => {
       text: JSON.stringify({ summary: 'ok' }), // missing themes/painPoints/etc
     });
     await expect(
-      summarizeBrief({ apiKey: 'k', supabase, briefId }),
+      summarizeStudy({ apiKey: 'k', supabase, studyId }),
     ).rejects.toThrow(/failed schema/);
-    expect(vi.mocked(updateBriefResults)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
   it('throws when Gemini response is empty', async () => {
     generateContent.mockResolvedValue({ text: '' });
     await expect(
-      summarizeBrief({ apiKey: 'k', supabase, briefId }),
+      summarizeStudy({ apiKey: 'k', supabase, studyId }),
     ).rejects.toThrow(/empty response/);
   });
 });

@@ -9,7 +9,7 @@ import { healthRoute } from './routes/health';
 import { createChatRoute } from './routes/chat';
 import { createRunToolRoute } from './routes/run-tool';
 import { createMcpRoute } from './routes/mcp';
-import { createBriefsPublicRoute } from './routes/briefs-public';
+import { createStudiesPublicRoute } from './routes/studies-public';
 import { createCallsRoute } from './routes/calls';
 import { createWebhooksRoute } from './routes/webhooks';
 import { createAuthRoute } from './routes/auth';
@@ -23,7 +23,7 @@ export type AppDeps = {
 /**
  * Compose the Hono app.
  *
- * - `/health`, `/briefs/:id`, `/calls/*`, `/webhooks/*` — public
+ * - `/health`, `/studies/:id` (alias `/briefs/:id`), `/calls/*`, `/webhooks/*` — public
  * - `/auth/refresh` — public
  * - `/auth/device/authorize`, `/auth/device/deny` — Supabase JWT required
  * - `/mcp` — auth handled per-session inside the route (device-flow UX)
@@ -41,7 +41,7 @@ export function createApp(deps: AppDeps) {
 
   // Public + auth-scopes-itself modules
   app.route('/', healthRoute);
-  app.route('/', createBriefsPublicRoute(deps));
+  app.route('/', createStudiesPublicRoute(deps));
   app.route('/', createCallsRoute(deps));
   app.route('/', createWebhooksRoute(deps));
   app.route('/', createAuthRoute(deps));

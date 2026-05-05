@@ -6,7 +6,7 @@ import type { ResearchContext, TranscriptEntry } from '@mirrars/shared';
 import type { Config } from '../config';
 import type { Logger } from '../lib/logger';
 import { AppError } from '../lib/errors';
-import { getBriefById } from '../db/briefs';
+import { getStudyById } from '../db/studies';
 import { saveInterview } from '../db/interviews';
 import {
   createElevenLabsAgent,
@@ -21,11 +21,11 @@ import {
   buildFirstMessage,
 } from '../agent/interview-prompt';
 import { analyzeTranscript } from '../agent/analyze-transcript';
-import { summarizeBrief } from '../agent/summarize-brief';
+import { summarizeStudy } from '../agent/summarize-study';
 
 type CallRecord = {
   id: string;
-  briefId: string;
+  studyId: string;
   /** Candidate the interviewee was invited as (from `?cid=` on the URL). */
   candidateId: string | null;
   agentId: string;
@@ -51,9 +51,9 @@ export function createCallsRoute(deps: {
   const inFlight = new Map<string, CallRecord>();
 
   const startBody = z.object({
-    briefId: z.string().uuid(),
+    studyId: z.string().uuid(),
     // Optional — present when the interviewee landed via an invite URL
-    // (`/interview/<briefId>?cid=<candidateId>`). Lets us attribute the
+    // (`/interview/<studyId>?cid=<candidateId>`). Lets us attribute the
     // completed interview back to the candidate row in `/calls/:id/end`.
     candidateId: z.string().uuid().optional(),
   });
@@ -65,25 +65,25 @@ export function createCallsRoute(deps: {
     const parsed = startBody.safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) throw new AppError('validation', 'Invalid body');
 
-    const brief = await getBriefById(deps.supabase, parsed.data.briefId);
-    if (!brief) throw new AppError('not_found', 'Brief not found');
+    const study = await getStudyById(deps.supabase, parsed.data.studyId);
+    if (!study) throw new AppError('not_found', 'Study not found');
 
     const agentId = await createElevenLabsAgent({
       apiKey: deps.config.elevenlabsApiKey,
       voiceId: deps.config.elevenlabsVoiceId,
-      systemPrompt: buildInterviewPrompt(brief.researchContext),
-      firstMessage: buildFirstMessage(brief.researchContext),
-      language: brief.researchContext.interviewSettings.language,
+      systemPrompt: buildInterviewPrompt(study.researchContext),
+      firstMessage: buildFirstMessage(study.researchContext),
+      language: study.researchContext.interviewSettings.language,
     });
 
     const signedUrl = await getSignedUrl(deps.config.elevenlabsApiKey, agentId);
 
     const record: CallRecord = {
       id: randomUUID(),
-      briefId: brief.id,
+      studyId: study.id,
       candidateId: parsed.data.candidateId ?? null,
       agentId,
-      context: brief.researchContext,
+      context: study.researchContext,
       createdAt: new Date(),
     };
     inFlight.set(record.id, record);
@@ -92,7 +92,7 @@ export function createCallsRoute(deps: {
       callId: record.id,
       agentId: record.agentId,
       signedUrl,
-      briefId: brief.id,
+      studyId: study.id,
     });
   });
 
@@ -156,7 +156,7 @@ export function createCallsRoute(deps: {
       interviewId = await saveInterview(deps.supabase, {
         callId: record.id,
         agentId: record.agentId,
-        briefId: record.briefId,
+        studyId: record.studyId,
         conversationId: parsed.data.conversationId,
         status,
         researchContext: record.context,
@@ -174,7 +174,7 @@ export function createCallsRoute(deps: {
     if (record.candidateId && interviewId && status === 'completed') {
       try {
         const { error } = await deps.supabase
-          .from('brief_candidates')
+          .from('study_candidates')
           .update({ interview_id: interviewId, status: 'interviewed' })
           .eq('id', record.candidateId);
         if (error) throw error;
@@ -190,28 +190,28 @@ export function createCallsRoute(deps: {
     void deleteElevenLabsAgent(deps.config.elevenlabsApiKey, record.agentId).catch(() => {});
     inFlight.delete(callId);
 
-    // Fire-and-forget: re-synthesize brief-level findings across all
+    // Fire-and-forget: re-synthesize study-level findings across all
     // completed interviews. Triggered after every successful interview;
-    // the latest run overwrites `briefs.results`. Failures are logged
+    // the latest run overwrites `studies.results`. Failures are logged
     // but never block the response — the interview itself is the
     // user-facing artifact, the synthesis is enrichment.
     if (status === 'completed' && interviewId) {
-      void summarizeBrief({
+      void summarizeStudy({
         apiKey: deps.config.geminiApiKey,
         supabase: deps.supabase,
-        briefId: record.briefId,
+        studyId: record.studyId,
       })
         .then((results) => {
           if (results) {
-            logger.info('brief summarized', {
-              briefId: record.briefId,
+            logger.info('study summarized', {
+              studyId: record.studyId,
               interviewCount: results.interviewCount,
             });
           }
         })
         .catch((err) => {
-          logger.warn('brief summarize failed', {
-            briefId: record.briefId,
+          logger.warn('study summarize failed', {
+            studyId: record.studyId,
             err: err instanceof Error ? err.message : String(err),
           });
         });
