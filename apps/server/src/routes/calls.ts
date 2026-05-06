@@ -137,7 +137,7 @@ export function createCallsRoute(deps: {
     if (status === 'completed' && transcript.length > 0) {
       try {
         analysis = await analyzeTranscript(
-          deps.config.geminiApiKey,
+          deps.config.openaiApiKey,
           transcript,
           record.context.research.questions,
         );
@@ -197,7 +197,7 @@ export function createCallsRoute(deps: {
     // user-facing artifact, the synthesis is enrichment.
     if (status === 'completed' && interviewId) {
       void summarizeStudy({
-        apiKey: deps.config.geminiApiKey,
+        apiKey: deps.config.openaiApiKey,
         supabase: deps.supabase,
         studyId: record.studyId,
       })

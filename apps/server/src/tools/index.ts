@@ -4,7 +4,6 @@ import { getStudyTool } from './get-study';
 import { createStudyTool } from './create-study';
 import { updateStudyTool } from './update-study';
 import { previewStudyTool } from './preview-study';
-import { regenerateStudyResultsTool } from './regenerate-study-results';
 import { getInterviewLinkTool } from './get-interview-link';
 import { listInterviewsTool } from './list-interviews';
 import { getInterviewTool } from './get-interview';
@@ -31,7 +30,6 @@ export const tools: ToolRegistry = {
   [createStudyTool.name]: createStudyTool,
   [updateStudyTool.name]: updateStudyTool,
   [previewStudyTool.name]: previewStudyTool,
-  [regenerateStudyResultsTool.name]: regenerateStudyResultsTool,
   [getInterviewLinkTool.name]: getInterviewLinkTool,
   [listInterviewsTool.name]: listInterviewsTool,
   [getInterviewTool.name]: getInterviewTool,

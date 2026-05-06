@@ -17,6 +17,40 @@ import type { Tool } from '../tools/types';
 const AUTH_WAIT_MS = 5 * 60_000;
 
 /**
+ * Build a tool result that surfaces the auth verification URL in two
+ * complementary ways:
+ *   1. A markdown link in the text content — agents like Claude Code
+ *      render this as clickable in their chat UI, so the user can
+ *      one-click open the page even when url-mode elicitation isn't
+ *      supported.
+ *   2. A `resource_link` content block — MCP-native clickable widget
+ *      (Cursor, Claude Code render as a card with an "Open" button).
+ *
+ * Used both as the immediate short-circuit when url-mode elicitation
+ * is rejected by the client, and as the timeout fallback when the
+ * user hasn't approved within AUTH_WAIT_MS.
+ */
+function clickableAuthFallback(verificationUri: string, userCode: string) {
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text:
+          `Mirars needs authorization. Open this link, sign in, and click **Approve**, then retry the tool:\n\n` +
+          `[${verificationUri}](${verificationUri})\n\n` +
+          `Verification code: \`${userCode}\``,
+      },
+      {
+        type: 'resource_link' as const,
+        uri: verificationUri,
+        name: `Authorize Mirars (${userCode})`,
+        description: `Opens the Mirars authorize page. Verification code: ${userCode}`,
+      },
+    ],
+  };
+}
+
+/**
  * MCP server over Streamable HTTP.
  *
  * Auth (device-flow UX ported from old apps/mcp, now server-side):
@@ -99,10 +133,13 @@ export function createMcpRoute(deps: {
             // Send a URL-based elicitation to the client (Claude Code / Cursor
             // render this as a native dialog with a clickable link + Continue
             // button) AND simultaneously wait for the push signal from
-            // /auth/device/authorize. Whichever resolves first wins; we then
-            // re-check state. Most of the time the web approval fires before
-            // the user clicks Continue, so tool returns its real result
-            // automatically.
+            // /auth/device/authorize. Whichever resolves first wins.
+            //
+            // If the client rejects url-mode (-32602), we want to short-
+            // circuit IMMEDIATELY — show the user a clickable link rather
+            // than silently waiting AUTH_WAIT_MS for a push signal they
+            // can't trigger because they don't know there's an auth flow.
+            let urlModeUnsupported = false;
             const elicitation = extra
               .sendRequest(
                 {
@@ -118,41 +155,39 @@ export function createMcpRoute(deps: {
                 ElicitResultSchema,
               )
               .catch((err) => {
-                // Older clients may not support url-mode elicitation — don't
-                // fail the flow, just fall back to the push-signal wait.
-                deps.logger.warn('elicitation failed — falling back to push wait', {
-                  err,
-                });
+                const msg = err instanceof Error ? err.message : String(err);
+                // Standard rejection from clients without url-mode support
+                // (e.g. older Claude Code, Cursor, third-party MCP clients).
+                if (/-32602|url-mode/i.test(msg)) {
+                  urlModeUnsupported = true;
+                } else {
+                  deps.logger.warn(
+                    'elicitation failed — falling back to push wait',
+                    { err },
+                  );
+                }
                 return null;
               });
 
             const pushSignal = waitForAuth(sid, AUTH_WAIT_MS);
-
             await Promise.race([elicitation, pushSignal]);
 
             // Either the user clicked Continue in the dialog OR the web
-            // approval pushed through. Re-resolve to learn the truth.
+            // approval pushed through OR the elicitation rejected fast.
             auth = await resolveAuth(sid, webBase, deps.supabase);
+
+            // If url-mode isn't supported, the elicitation rejection
+            // landed fast and the race is over — surface a clickable
+            // resource_link + markdown URL right away rather than burning
+            // the rest of the AUTH_WAIT_MS budget on a silent wait.
+            if (urlModeUnsupported && auth.kind === 'pending') {
+              return clickableAuthFallback(auth.verificationUri, auth.userCode);
+            }
           }
 
           if (auth.kind === 'pending') {
             // Fallback: elicitation cancelled / timed out without approval.
-            // Return the URL as a resource_link so the user still has a way to act.
-            return {
-              content: [
-                {
-                  type: 'text' as const,
-                  text:
-                    'Authorization did not complete. Click the link, sign in, and click Approve — then ask me to continue.',
-                },
-                {
-                  type: 'resource_link' as const,
-                  uri: auth.verificationUri,
-                  name: `Authorize (${auth.userCode})`,
-                  description: `Opens the Mirars authorize page. Verification code: ${auth.userCode}`,
-                },
-              ],
-            };
+            return clickableAuthFallback(auth.verificationUri, auth.userCode);
           }
           if (auth.kind === 'denied') {
             return {

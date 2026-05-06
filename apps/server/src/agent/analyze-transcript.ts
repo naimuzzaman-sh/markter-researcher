@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import type {
   CallAnalysis,
   ResearchQuestion,
@@ -6,15 +5,20 @@ import type {
 } from '@mirrars/shared';
 import { callAnalysisSchema } from '@mirrars/shared';
 import { AppError } from '../lib/errors';
+import { chatCompletionJson } from '../external/openai';
+import { zodToJsonSchema } from './zod-to-json-schema';
 
 /**
- * Post-call transcript analysis via Gemini.
- * Returns a CallAnalysis (PMF signals, per-question insights, overall sentiment).
- * Uses schema-forced JSON output — Gemini is constrained to return exactly
- * the CallAnalysis shape.
+ * Post-call transcript analysis via OpenAI chat completions with
+ * strict JSON schema output. Returns a CallAnalysis (PMF signals,
+ * per-question insights, overall sentiment).
+ *
+ * Switched from Gemini after frequent 503s; OpenAI's strict
+ * structured-output mode also eliminates the markdown-fence /
+ * shape-drift class of failures that hit production.
  */
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gpt-5-mini';
 
 function buildAnalysisPrompt(
   transcript: TranscriptEntry[],
@@ -24,26 +28,26 @@ function buildAnalysisPrompt(
     .map((e) => `${e.role.toUpperCase()} (${e.timeInCallSecs}s): ${e.message}`)
     .join('\n');
   const qList = questions
-    .map((q) => `- [${q.category}] ${q.text}`)
+    .map((q) => `- id="${q.id}" [${q.category}] ${q.text}`)
     .join('\n');
 
-  return `You analyzed a market research interview transcript. Return STRICT JSON matching the required schema.
+  return `You analyzed a market research interview transcript. Return STRICT JSON matching the schema below.
 
 ## Transcript
 ${transcriptText}
 
-## Research Questions (for inferred-answer mapping)
+## Research Questions (use the listed id verbatim when emitting "answers[].questionId")
 ${qList}
 
 ## What to extract
-- participant: inferred role + background from what they said
-- answers: one entry per research question, with the interviewee's answer (verbatim when short; paraphrased when long) and a confidence score 0–1
-- keyInsights: 3–5 bullet-length standout takeaways
-- productMarketFitSignals: list of specific quotes/moments that suggest PMF or lack thereof
-- suggestedFollowUps: 2–4 questions worth asking in a follow-up
+- participant: inferredRole + background (1+ chars each)
+- answers: one entry per research question — match "questionId" to the listed ids EXACTLY (do not invent ids). If the interviewee did not address a question, set "response" to "Not addressed" and "sentiment" to "neutral".
+- keyInsights: 3–5 bullet-length takeaways (each non-empty)
+- productMarketFitSignals: specific quotes/moments suggesting PMF or its absence
+- suggestedFollowUps: 2–4 questions worth asking next
 - overallSentiment: "positive" | "neutral" | "negative"
 
-Be precise. Ground every claim in the transcript.`;
+Ground every claim in the transcript. Be concise.`;
 }
 
 export async function analyzeTranscript(
@@ -51,32 +55,21 @@ export async function analyzeTranscript(
   transcript: TranscriptEntry[],
   questions: ResearchQuestion[],
 ): Promise<CallAnalysis> {
-  const ai = new GoogleGenAI({ apiKey });
-  const response = await ai.models.generateContent({
+  const { data } = await chatCompletionJson<unknown>({
+    apiKey,
     model: MODEL,
-    contents: [{ role: 'user', parts: [{ text: buildAnalysisPrompt(transcript, questions) }] }],
-    config: {
-      responseMimeType: 'application/json',
-    },
+    prompt: buildAnalysisPrompt(transcript, questions),
+    schemaName: 'call_analysis',
+    schema: zodToJsonSchema(callAnalysisSchema),
   });
-
-  const text = response.text ?? response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  if (!text) {
-    throw new AppError('upstream', 'Gemini analysis returned empty response');
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new AppError('upstream', 'Gemini analysis response was not valid JSON');
-  }
-
-  const result = callAnalysisSchema.safeParse(parsed);
+  // OpenAI strict mode enforces the shape server-side, but the schema
+  // dialect doesn't carry every Zod constraint (e.g. min(1) on string
+  // items). Zod is the final gate.
+  const result = callAnalysisSchema.safeParse(data);
   if (!result.success) {
     throw new AppError(
       'upstream',
-      `Gemini analysis JSON failed schema: ${result.error.issues[0]?.message ?? 'unknown'}`,
+      `OpenAI analysis JSON failed schema: ${result.error.issues[0]?.message ?? 'unknown'}`,
     );
   }
   return result.data;

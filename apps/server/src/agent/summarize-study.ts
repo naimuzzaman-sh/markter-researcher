@@ -1,4 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   studyResultsSchema,
@@ -8,6 +7,8 @@ import {
 import { getStudyById, updateStudyResults } from '../db/studies';
 import { listCompletedInterviewsForStudySummarization } from '../db/interviews';
 import { AppError } from '../lib/errors';
+import { chatCompletionJson } from '../external/openai';
+import { zodToJsonSchema } from './zod-to-json-schema';
 
 /**
  * Study-level synthesis across all completed interviews. Triggered
@@ -19,9 +20,19 @@ import { AppError } from '../lib/errors';
  * No-ops cleanly when there are zero completed interviews — leaves
  * `results` untouched so the UI keeps showing nothing rather than an
  * empty synthesis.
+ *
+ * Switched from Gemini to OpenAI strict structured-output mode after
+ * frequent 503s + occasional fence/shape drift.
  */
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gpt-5-mini';
+
+// `interviewCount` + `lastUpdated` are stamped server-side from the
+// canonical interviews list; we don't trust the LLM for either. The
+// schema we hand the model omits both so it can't fabricate them.
+const llmResultsJsonSchema = zodToJsonSchema(
+  studyResultsSchema.omit({ interviewCount: true, lastUpdated: true }),
+);
 
 function buildSummaryPrompt(args: {
   context: Partial<ResearchContext>;
@@ -88,43 +99,22 @@ export async function summarizeStudy(args: {
   // existing results (if any) untouched.
   if (interviews.length === 0) return null;
 
-  const ai = new GoogleGenAI({ apiKey: args.apiKey });
-  const response = await ai.models.generateContent({
+  const { data } = await chatCompletionJson<unknown>({
+    apiKey: args.apiKey,
     model: MODEL,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: buildSummaryPrompt({
-              context: study.researchContext,
-              interviews,
-            }),
-          },
-        ],
-      },
-    ],
-    config: { responseMimeType: 'application/json' },
+    prompt: buildSummaryPrompt({
+      context: study.researchContext,
+      interviews,
+    }),
+    schemaName: 'study_results',
+    schema: llmResultsJsonSchema,
   });
-
-  const text =
-    response.text ?? response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  if (!text) {
-    throw new AppError('upstream', 'Gemini summary returned empty response');
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new AppError('upstream', 'Gemini summary response was not valid JSON');
-  }
 
   // Stamp the count + timestamp ourselves — the LLM doesn't need to
   // know the canonical values, and trusting it for a count it can
   // miscount is sloppy.
   const stamped = {
-    ...(parsed as Record<string, unknown>),
+    ...(data as Record<string, unknown>),
     interviewCount: interviews.length,
     lastUpdated: new Date().toISOString(),
   };
@@ -133,7 +123,7 @@ export async function summarizeStudy(args: {
   if (!result.success) {
     throw new AppError(
       'upstream',
-      `Gemini summary failed schema: ${result.error.issues[0]?.message ?? 'unknown'}`,
+      `OpenAI summary failed schema: ${result.error.issues[0]?.message ?? 'unknown'}`,
     );
   }
 

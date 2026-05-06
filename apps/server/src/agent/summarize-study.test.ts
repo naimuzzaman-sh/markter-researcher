@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// Mock all collaborators. The tests focus on the orchestration logic:
-// "do we call Gemini?", "what's stamped on the result?", "do we
-// short-circuit when there are zero interviews?", etc.
-const generateContent = vi.fn();
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(() => ({
-    models: { generateContent },
-  })),
+// Mock all collaborators. The tests focus on orchestration: "do we
+// call the LLM?", "what's stamped on the result?", "do we short-
+// circuit when there are zero interviews?", etc.
+vi.mock('../external/openai', () => ({
+  chatCompletionJson: vi.fn(),
 }));
 
 vi.mock('../db/studies', () => ({
@@ -21,6 +18,7 @@ vi.mock('../db/interviews', () => ({
 }));
 
 import { summarizeStudy } from './summarize-study';
+import { chatCompletionJson } from '../external/openai';
 import { getStudyById, updateStudyResults } from '../db/studies';
 import { listCompletedInterviewsForStudySummarization } from '../db/interviews';
 
@@ -91,35 +89,25 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue([baseInterview] as never);
   vi.mocked(updateStudyResults).mockReset().mockResolvedValue(true);
-  generateContent.mockReset();
-  generateContent.mockResolvedValue({
-    text: JSON.stringify(validResultsPayload),
-    candidates: [],
-  });
+  vi.mocked(chatCompletionJson)
+    .mockReset()
+    .mockResolvedValue({ data: validResultsPayload, tokens: 42 });
 });
 
 describe('summarizeStudy', () => {
   it('returns null when study does not exist', async () => {
     vi.mocked(getStudyById).mockResolvedValue(null);
-    const result = await summarizeStudy({
-      apiKey: 'k',
-      supabase,
-      studyId,
-    });
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
     expect(result).toBeNull();
-    expect(generateContent).not.toHaveBeenCalled();
+    expect(chatCompletionJson).not.toHaveBeenCalled();
     expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
   it('returns null and writes nothing when there are zero completed interviews', async () => {
     vi.mocked(listCompletedInterviewsForStudySummarization).mockResolvedValue([]);
-    const result = await summarizeStudy({
-      apiKey: 'k',
-      supabase,
-      studyId,
-    });
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
     expect(result).toBeNull();
-    expect(generateContent).not.toHaveBeenCalled();
+    expect(chatCompletionJson).not.toHaveBeenCalled();
     expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
@@ -129,9 +117,10 @@ describe('summarizeStudy', () => {
       { ...baseInterview, interviewId: 'iv2' },
       { ...baseInterview, interviewId: 'iv3' },
     ] as never);
-    // LLM returns the wrong count on purpose — we must override.
-    generateContent.mockResolvedValue({
-      text: JSON.stringify({ ...validResultsPayload, interviewCount: 99, lastUpdated: 'fake' }),
+    // LLM returns wrong count on purpose — we must override.
+    vi.mocked(chatCompletionJson).mockResolvedValue({
+      data: { ...validResultsPayload, interviewCount: 99, lastUpdated: 'fake' },
+      tokens: 0,
     });
     const before = Date.now();
     const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
@@ -156,17 +145,10 @@ describe('summarizeStudy', () => {
     );
   });
 
-  it('throws when Gemini returns invalid JSON', async () => {
-    generateContent.mockResolvedValue({ text: 'not json {{{' });
-    await expect(
-      summarizeStudy({ apiKey: 'k', supabase, studyId }),
-    ).rejects.toThrow(/not valid JSON/);
-    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
-  });
-
-  it('throws when JSON fails the schema (missing required field)', async () => {
-    generateContent.mockResolvedValue({
-      text: JSON.stringify({ summary: 'ok' }), // missing themes/painPoints/etc
+  it('throws when LLM payload fails the schema (missing required field)', async () => {
+    vi.mocked(chatCompletionJson).mockResolvedValue({
+      data: { summary: 'ok' }, // missing themes/painPoints/etc
+      tokens: 0,
     });
     await expect(
       summarizeStudy({ apiKey: 'k', supabase, studyId }),
@@ -174,10 +156,13 @@ describe('summarizeStudy', () => {
     expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
   });
 
-  it('throws when Gemini response is empty', async () => {
-    generateContent.mockResolvedValue({ text: '' });
-    await expect(
-      summarizeStudy({ apiKey: 'k', supabase, studyId }),
-    ).rejects.toThrow(/empty response/);
+  it('passes the omit-stamped JSON schema to the LLM (no interviewCount / lastUpdated)', async () => {
+    await summarizeStudy({ apiKey: 'k', supabase, studyId });
+    const call = vi.mocked(chatCompletionJson).mock.calls[0][0];
+    const props = (call.schema as { properties: Record<string, unknown> }).properties;
+    expect(props).not.toHaveProperty('interviewCount');
+    expect(props).not.toHaveProperty('lastUpdated');
+    expect(props).toHaveProperty('summary');
+    expect(call.schemaName).toBe('study_results');
   });
 });

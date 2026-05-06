@@ -9,7 +9,7 @@ const inputSchema = z.object({ interviewId: z.string().uuid() });
 export const getInterviewTool: Tool<z.infer<typeof inputSchema>> = {
   name: 'get_interview',
   description:
-    "Fetch a single interview by id with the full transcript and analysis. Returns: `transcript` (turn-by-turn role + message + timeInCallSecs), `analysis` (participant role + background, per-question answers with sentiment, keyInsights, productMarketFitSignals, suggestedFollowUps, overallSentiment), `status` (completed | failed), `durationSecs`, `completedAt`, plus resolved `studyName` and `contactName` so the LLM can refer to either by name. `analysis` may be null on rare transient-Gemini failures — the transcript is still the authoritative record. For aggregated cross-interview synthesis, use `get_study({ studyId }).results` or `regenerate_study_results`.",
+    "Fetch a single interview by id with the full transcript and analysis. Returns: `transcript` (turn-by-turn role + message + timeInCallSecs), `analysis` (participant role + background, per-question answers with sentiment, keyInsights, productMarketFitSignals, suggestedFollowUps, overallSentiment), `status` (completed | failed), `durationSecs`, `completedAt`, plus resolved `studyName` and `contactName` so the LLM can refer to either by name. `analysis` may be null on rare transient upstream failures — the transcript is still the authoritative record. For aggregated cross-interview synthesis, use `get_study({ studyId }).results` (server auto-refreshes lazily when stale).",
   inputSchema,
   async execute(args, ctx) {
     const interview = await getInterviewById(ctx.supabase, args.interviewId, ctx.userId);
