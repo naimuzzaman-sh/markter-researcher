@@ -3,5 +3,3 @@ packages:
   - 'packages/*'
 onlyBuiltDependencies:
   - esbuild
-  - '@nestjs/core'
-  - protobufjs

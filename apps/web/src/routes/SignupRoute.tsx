@@ -36,7 +36,7 @@ function SignupRoute() {
       // friendly message if a confirmation step is required.
       const signInResult = await signIn(email.trim(), password);
       if (signInResult.ok) {
-        navigate('/setup', { replace: true });
+        navigate('/assistant', { replace: true });
         return;
       }
       setError(

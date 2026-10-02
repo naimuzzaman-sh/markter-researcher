@@ -2,10 +2,10 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import LandingRoute from './routes/LandingRoute';
 import LoginRoute from './routes/LoginRoute';
 import SignupRoute from './routes/SignupRoute';
-import SetupRoute from './routes/SetupRoute';
-import BriefCreatedRoute from './routes/BriefCreatedRoute';
+import StudyCreatedRoute from './routes/StudyCreatedRoute';
 import InterviewRoute from './routes/InterviewRoute';
 import AuthorizeRoute from './routes/AuthorizeRoute';
+import AssistantRoute from './routes/AssistantRoute';
 import { EditorialLayout, Kicker } from './components/editorial';
 import { Button } from './components/ui/button';
 import { AuthProvider } from './auth/AuthProvider';
@@ -44,12 +44,22 @@ function App() {
           <Route path="/" element={<LandingRoute />} />
           <Route path="/login" element={<LoginRoute />} />
           <Route path="/signup" element={<SignupRoute />} />
+          {/*
+            Interview landing — public. Both `/interview/:studyId` (current)
+            and `/interview/:briefId` (legacy) resolve to the same handler.
+            The legacy alias keeps invite emails issued before the brief→study
+            rename working. The route param name differs but `useParams()`
+            is read narrowly inside the component, normalized to studyId.
+          */}
+          <Route path="/interview/:studyId" element={<InterviewRoute />} />
           <Route path="/interview/:briefId" element={<InterviewRoute />} />
 
           {/* Protected (researcher only) */}
           <Route element={<RequireAuth />}>
-            <Route path="/setup" element={<SetupRoute />} />
-            <Route path="/briefs/:briefId" element={<BriefCreatedRoute />} />
+            <Route path="/assistant" element={<AssistantRoute />} />
+            {/* Same alias pair for the post-create confirmation page. */}
+            <Route path="/studies/:studyId" element={<StudyCreatedRoute />} />
+            <Route path="/briefs/:studyId" element={<StudyCreatedRoute />} />
             <Route path="/authorize/:userCode" element={<AuthorizeRoute />} />
           </Route>
 

@@ -7,7 +7,7 @@ if (!url || !anonKey) {
   // Fail loudly at import time so the problem surfaces before any auth call.
   throw new Error(
     'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. ' +
-      'Add them to apps/web/.env (dev) or your Railway Variables (prod).',
+      'Add them to apps/web/.env (dev) or your host environment (prod).',
   );
 }
 

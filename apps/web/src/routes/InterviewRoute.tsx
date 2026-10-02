@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { ConversationProvider } from '@elevenlabs/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -8,48 +8,58 @@ import {
   TypingDots,
 } from '@/components/editorial';
 import { ActiveCall } from '@/components/ActiveCall';
-import { getBrief, startCall, type GetBriefResponse } from '@/lib/api';
+import { getStudy, startCall, type GetStudyResponse } from '@/lib/api';
 
 type Stage = 'loading' | 'welcome' | 'launching' | 'live' | 'done' | 'error';
 
 function InterviewRoute() {
-  const { briefId } = useParams<{ briefId: string }>();
-  const [brief, setBrief] = useState<GetBriefResponse | null>(null);
+  // The route is registered TWICE in App.tsx — once as
+  // `/interview/:studyId` (current) and once as `/interview/:briefId`
+  // (legacy alias for invite emails issued before the brief→study
+  // rename). useParams returns whichever name matched. Normalize to
+  // a single `studyId` here.
+  const params = useParams<{ studyId?: string; briefId?: string }>();
+  const studyId = params.studyId ?? params.briefId;
+  const [searchParams] = useSearchParams();
+  // `?cid=<candidateId>` is set on invite links; if present we forward
+  // it to /calls/start so the completed interview attributes back.
+  const candidateId = searchParams.get('cid') ?? undefined;
+  const [study, setStudy] = useState<GetStudyResponse | null>(null);
   const [stage, setStage] = useState<Stage>('loading');
   const [callId, setCallId] = useState<string | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!briefId) {
-      setError('No brief ID in URL');
+    if (!studyId) {
+      setError('No study ID in URL');
       setStage('error');
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const fetched = await getBrief(briefId);
+        const fetched = await getStudy(studyId);
         if (cancelled) return;
-        setBrief(fetched);
+        setStudy(fetched);
         setStage('welcome');
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load brief');
+        setError(err instanceof Error ? err.message : 'Failed to load study');
         setStage('error');
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [briefId]);
+  }, [studyId]);
 
   const handleBegin = useCallback(async () => {
-    if (!briefId) return;
+    if (!studyId) return;
     setStage('launching');
     setError(null);
     try {
-      const response = await startCall(briefId);
+      const response = await startCall(studyId, candidateId);
       setCallId(response.callId);
       setSignedUrl(response.signedUrl);
       setStage('live');
@@ -57,7 +67,7 @@ function InterviewRoute() {
       setError(err instanceof Error ? err.message : 'Failed to start call');
       setStage('error');
     }
-  }, [briefId]);
+  }, [studyId, candidateId]);
 
   if (stage === 'loading') {
     return (
@@ -67,7 +77,7 @@ function InterviewRoute() {
     );
   }
 
-  if (stage === 'error' || !brief) {
+  if (stage === 'error' || !study) {
     return (
       <EditorialLayout
         issueLabel="Issue № 001 — Invitation"
@@ -82,7 +92,7 @@ function InterviewRoute() {
             This interview link is no longer active.
           </p>
           <p className="font-mono text-xs text-destructive border-l-2 border-destructive pl-3">
-            {error ?? 'Brief not found'}
+            {error ?? 'Study not found'}
           </p>
         </div>
       </EditorialLayout>
@@ -105,7 +115,7 @@ function InterviewRoute() {
           </p>
           <p className="font-serif text-lg text-muted-foreground leading-relaxed max-w-xl">
             Your responses have been saved. The team at{' '}
-            <span className="italic">{brief.researchContext.company.name}</span>{' '}
+            <span className="italic">{study.researchContext.company.name}</span>{' '}
             will use them to build a better product.
           </p>
           <div className="hairline" />
@@ -123,9 +133,9 @@ function InterviewRoute() {
         <ActiveCall
           callId={callId}
           signedUrl={signedUrl}
-          productName={brief.researchContext.product.name}
+          productName={study.researchContext.product.name}
           maxDurationMinutes={
-            brief.researchContext.interviewSettings.maxDurationMinutes
+            study.researchContext.interviewSettings.maxDurationMinutes
           }
           onComplete={() => setStage('done')}
           onError={(msg) => {
@@ -138,7 +148,7 @@ function InterviewRoute() {
   }
 
   // welcome + launching
-  const { researchContext: ctx } = brief;
+  const { researchContext: ctx } = study;
   return (
     <EditorialLayout
       issueLabel="Issue № 001 — Invitation"

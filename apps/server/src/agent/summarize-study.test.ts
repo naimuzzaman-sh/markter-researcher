@@ -1,0 +1,168 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+// Mock all collaborators. The tests focus on orchestration: "do we
+// call the LLM?", "what's stamped on the result?", "do we short-
+// circuit when there are zero interviews?", etc.
+vi.mock('../external/openai', () => ({
+  chatCompletionJson: vi.fn(),
+}));
+
+vi.mock('../db/studies', () => ({
+  getStudyById: vi.fn(),
+  updateStudyResults: vi.fn(),
+}));
+
+vi.mock('../db/interviews', () => ({
+  listCompletedInterviewsForStudySummarization: vi.fn(),
+}));
+
+import { summarizeStudy } from './summarize-study';
+import { chatCompletionJson } from '../external/openai';
+import { getStudyById, updateStudyResults } from '../db/studies';
+import { listCompletedInterviewsForStudySummarization } from '../db/interviews';
+
+const supabase = {} as SupabaseClient;
+const studyId = 'b1';
+
+const baseStudy = {
+  id: studyId,
+  researchContext: {
+    company: { name: 'Acme', industry: 'fintech', description: 'd' },
+    product: {
+      name: 'Acme Pay',
+      description: 'd',
+      keyFeatures: ['x'],
+      icp: {
+        audience: 'SMB owners',
+        problem: 'manual reconciliation eats hours',
+        attributes: [
+          { name: 'role', value: 'owner' },
+          { name: 'companySize', value: '1-50' },
+          { name: 'industry', value: 'retail' },
+        ],
+        summary: 'SMB owners — owner · 1-50 · retail — manual reconciliation eats hours',
+      },
+    },
+    research: {
+      objective: 'Validate PMF',
+      questions: [],
+      concerns: [],
+      productMarketFit: { hypothesis: 'h', signals: [] },
+    },
+    interviewSettings: { maxDurationMinutes: 30, tone: 'friendly', language: 'en' },
+  },
+  status: 'active' as const,
+  chatHistory: [],
+  results: null,
+  createdAt: new Date(),
+};
+
+const baseInterview = {
+  interviewId: 'iv1',
+  transcript: [
+    { role: 'agent' as const, message: 'How do you handle expenses?', timeInCallSecs: 5 },
+    {
+      role: 'user' as const,
+      message: 'Manually with spreadsheets, it sucks',
+      timeInCallSecs: 10,
+    },
+  ],
+  analysis: {
+    keyInsights: ['users hate manual entry'],
+    productMarketFitSignals: ['strong pain around manual work'],
+  },
+  completedAt: new Date(),
+};
+
+const validResultsPayload = {
+  summary: 'Users universally dislike manual expense entry.',
+  themes: ['Manual entry friction'],
+  painPoints: ['Spreadsheet drudgery'],
+  pmfSignalsObserved: ['Strong frustration signals'],
+  recommendations: ['Validate auto-import flow'],
+};
+
+beforeEach(() => {
+  vi.mocked(getStudyById).mockReset().mockResolvedValue(baseStudy as never);
+  vi.mocked(listCompletedInterviewsForStudySummarization)
+    .mockReset()
+    .mockResolvedValue([baseInterview] as never);
+  vi.mocked(updateStudyResults).mockReset().mockResolvedValue(true);
+  vi.mocked(chatCompletionJson)
+    .mockReset()
+    .mockResolvedValue({ data: validResultsPayload, tokens: 42 });
+});
+
+describe('summarizeStudy', () => {
+  it('returns null when study does not exist', async () => {
+    vi.mocked(getStudyById).mockResolvedValue(null);
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
+    expect(result).toBeNull();
+    expect(chatCompletionJson).not.toHaveBeenCalled();
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
+  });
+
+  it('returns null and writes nothing when there are zero completed interviews', async () => {
+    vi.mocked(listCompletedInterviewsForStudySummarization).mockResolvedValue([]);
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
+    expect(result).toBeNull();
+    expect(chatCompletionJson).not.toHaveBeenCalled();
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
+  });
+
+  it('stamps interviewCount + lastUpdated server-side (not from the LLM)', async () => {
+    vi.mocked(listCompletedInterviewsForStudySummarization).mockResolvedValue([
+      baseInterview,
+      { ...baseInterview, interviewId: 'iv2' },
+      { ...baseInterview, interviewId: 'iv3' },
+    ] as never);
+    // LLM returns wrong count on purpose — we must override.
+    vi.mocked(chatCompletionJson).mockResolvedValue({
+      data: { ...validResultsPayload, interviewCount: 99, lastUpdated: 'fake' },
+      tokens: 0,
+    });
+    const before = Date.now();
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
+    const after = Date.now();
+    expect(result?.interviewCount).toBe(3);
+    const updated = new Date(result!.lastUpdated).getTime();
+    expect(updated).toBeGreaterThanOrEqual(before);
+    expect(updated).toBeLessThanOrEqual(after);
+  });
+
+  it('persists the validated result via updateStudyResults', async () => {
+    const result = await summarizeStudy({ apiKey: 'k', supabase, studyId });
+    expect(result).not.toBeNull();
+    expect(vi.mocked(updateStudyResults)).toHaveBeenCalledWith(
+      supabase,
+      studyId,
+      expect.objectContaining({
+        summary: validResultsPayload.summary,
+        themes: validResultsPayload.themes,
+        interviewCount: 1,
+      }),
+    );
+  });
+
+  it('throws when LLM payload fails the schema (missing required field)', async () => {
+    vi.mocked(chatCompletionJson).mockResolvedValue({
+      data: { summary: 'ok' }, // missing themes/painPoints/etc
+      tokens: 0,
+    });
+    await expect(
+      summarizeStudy({ apiKey: 'k', supabase, studyId }),
+    ).rejects.toThrow(/failed schema/);
+    expect(vi.mocked(updateStudyResults)).not.toHaveBeenCalled();
+  });
+
+  it('passes the omit-stamped JSON schema to the LLM (no interviewCount / lastUpdated)', async () => {
+    await summarizeStudy({ apiKey: 'k', supabase, studyId });
+    const call = vi.mocked(chatCompletionJson).mock.calls[0][0];
+    const props = (call.schema as { properties: Record<string, unknown> }).properties;
+    expect(props).not.toHaveProperty('interviewCount');
+    expect(props).not.toHaveProperty('lastUpdated');
+    expect(props).toHaveProperty('summary');
+    expect(call.schemaName).toBe('study_results');
+  });
+});

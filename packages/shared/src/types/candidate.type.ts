@@ -12,9 +12,9 @@ const candidateStatusSchema = z.enum([
 
 const candidateSourceSchema = z.enum(['discovery', 'manual', 'import']);
 
-const briefCandidateSchema = z.object({
+const studyCandidateSchema = z.object({
   id: z.string().uuid(),
-  briefId: z.string().uuid(),
+  studyId: z.string().uuid(),
   contactId: z.string().uuid(),
   status: candidateStatusSchema,
   source: candidateSourceSchema,
@@ -26,7 +26,7 @@ const briefCandidateSchema = z.object({
 
 type CandidateStatus = z.infer<typeof candidateStatusSchema>;
 type CandidateSource = z.infer<typeof candidateSourceSchema>;
-type BriefCandidate = z.infer<typeof briefCandidateSchema>;
+type StudyCandidate = z.infer<typeof studyCandidateSchema>;
 
-export { briefCandidateSchema, candidateStatusSchema, candidateSourceSchema };
-export type { BriefCandidate, CandidateStatus, CandidateSource };
+export { studyCandidateSchema, candidateStatusSchema, candidateSourceSchema };
+export type { StudyCandidate, CandidateStatus, CandidateSource };

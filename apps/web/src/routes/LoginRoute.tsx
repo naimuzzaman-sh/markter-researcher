@@ -16,7 +16,7 @@ function LoginRoute() {
   const [error, setError] = useState<string | null>(null);
 
   const nextPath =
-    (location.state as LocationState | null)?.from?.pathname ?? '/setup';
+    (location.state as LocationState | null)?.from?.pathname ?? '/assistant';
 
   const handleSubmit = useCallback(
     async (e: FormEvent) => {

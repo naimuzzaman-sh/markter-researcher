@@ -1,11 +1,8 @@
 {
   "mcpServers": {
-    "market-researcher": {
-      "command": "pnpm",
-      "args": ["--filter", "mcp", "start"],
-      "env": {
-        "MARKET_RESEARCHER_URL": "http://localhost:3000"
-      }
+    "mirars": {
+      "type": "http",
+      "url": "http://localhost:3001/mcp"
     }
   }
 }

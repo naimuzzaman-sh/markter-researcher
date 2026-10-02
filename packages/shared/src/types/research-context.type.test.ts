@@ -1,17 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { briefPatchSchema, researchContextSchema } from './research-context.type';
+import { studyPatchSchema, researchContextSchema } from './research-context.type';
 
 const validContext = {
   company: {
-    name: 'Market Researcher AI',
+    name: 'Mirrars',
     industry: 'AI / Market Research',
     description: 'An AI-powered agent that conducts market research interviews via voice calls',
   },
   product: {
-    name: 'Market Researcher Agent',
+    name: 'Mirrars Agent',
     description: 'AI agent that calls users to conduct structured market research interviews',
     keyFeatures: ['Voice interviews', 'Adaptive questioning', 'Post-call analysis'],
-    targetAudience: 'Product managers, founders, and market researchers',
+    icp: {
+      audience: 'Product managers and founders running customer research',
+      problem: 'Manual interview scheduling and synthesis takes weeks',
+      attributes: [
+        { name: 'role', value: 'PM / founder' },
+        { name: 'companyStage', value: 'Seed–Series B' },
+        { name: 'researchCadence', value: 'monthly' },
+      ],
+      summary:
+        'Product managers and founders — PM / founder · Seed–Series B · monthly — Manual interview scheduling and synthesis takes weeks',
+    },
   },
   research: {
     objective: 'Understand how potential users currently conduct market research and their interest in an AI-powered solution',
@@ -93,21 +103,21 @@ describe('researchContextSchema', () => {
   });
 });
 
-describe('briefPatchSchema', () => {
+describe('studyPatchSchema', () => {
   it('accepts an empty patch (no-op update)', () => {
-    expect(briefPatchSchema.safeParse({}).success).toBe(true);
+    expect(studyPatchSchema.safeParse({}).success).toBe(true);
   });
 
   it('accepts a single nested field patch (research.objective only)', () => {
     expect(
-      briefPatchSchema.safeParse({ research: { objective: 'new goal' } })
+      studyPatchSchema.safeParse({ research: { objective: 'new goal' } })
         .success,
     ).toBe(true);
   });
 
   it('accepts a multi-subtree patch touching product + interviewSettings', () => {
     expect(
-      briefPatchSchema.safeParse({
+      studyPatchSchema.safeParse({
         product: { name: 'New Name' },
         interviewSettings: { maxDurationMinutes: 10 },
       }).success,
@@ -115,7 +125,7 @@ describe('briefPatchSchema', () => {
   });
 
   it('accepts replacing the questions array wholesale when complete items are provided', () => {
-    const result = briefPatchSchema.safeParse({
+    const result = studyPatchSchema.safeParse({
       research: {
         questions: [
           {
@@ -132,13 +142,13 @@ describe('briefPatchSchema', () => {
 
   it('rejects empty strings on fields that have minLength:1 (e.g. objective)', () => {
     expect(
-      briefPatchSchema.safeParse({ research: { objective: '' } }).success,
+      studyPatchSchema.safeParse({ research: { objective: '' } }).success,
     ).toBe(false);
   });
 
   it('rejects incomplete question objects in the questions array', () => {
     // Array items must be FULL questions — per-item partials are not supported.
-    const result = briefPatchSchema.safeParse({
+    const result = studyPatchSchema.safeParse({
       research: {
         questions: [{ id: 'qx', text: 'partial only' }],
       },
@@ -147,7 +157,7 @@ describe('briefPatchSchema', () => {
   });
 
   it('rejects unknown top-level keys via the object schema', () => {
-    const result = briefPatchSchema.safeParse({
+    const result = studyPatchSchema.safeParse({
       company: { name: 'X' },
       bogus: 'not a real field',
     });
